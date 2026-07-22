@@ -1,0 +1,638 @@
+/**
+ * @file RightSidebar.ts
+ * @description Orchestrates the folder tree UI panel, persistent user interaction state,
+ * modal anchoring for editing forms, and event delegation for advanced drag-and-drop tree reordering.
+ */
+import { FolderManager } from '../models/FolderManager';
+import { FolderEditor } from './FolderEditor';
+import { ICONS } from './icons';
+import { GlobalStyles } from '../ui/styles/index';
+import type { FolderData } from '../models/Folder';
+import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
+
+/**
+ * Main presentation component responsible for rendering and handling interactions
+ * on the right slide-out drawer panel inside the targeted AI platform interface.
+ */
+export class RightSidebar {
+    private panel: HTMLElement | null = null;	// The root DOM reference containing the rendered folder framework drawer
+    private dock: HTMLElement | null = null;	// The floating trigger handle injected globally into the document viewport edge
+	private adapter: LeftSidebarAdapter | null; // Reference to the active site-specific adapter layer
+
+	/**
+     * Constructs the RightSidebar interface component.
+     * @param {LeftSidebarAdapter | null} adapter - Platform operational binder link.
+     */
+    constructor(adapter: LeftSidebarAdapter | null) {
+        this.adapter = adapter;
+        this.init();
+    }
+
+	/**
+     * Triggers sequential asynchronous boot sequences for core UI attachment routines.
+     * @private
+     * @returns {Promise<void>}
+     */
+    private async init(): Promise<void> {
+        this.injectStyles();
+        this.createDockTrigger();
+        this.createPanel();
+		this.bindDragEvents();
+
+        await this.refresh();
+    }
+
+	/**
+     * Injects custom standalone utility styling rules into the current runtime document environment head.
+     * @private
+     */
+    private injectStyles(): void {
+        if (document.getElementById('aichat-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'aichat-styles';
+        style.textContent = GlobalStyles;
+        document.head.appendChild(style);
+    }
+
+	/**
+     * Instantiates and mounts the viewport edge trigger toggle latch to the root document body.
+     * @private
+     */
+    private createDockTrigger(): void {
+        this.dock = document.createElement('div');
+        this.dock.className = 'aichat-dock-trigger';
+		if (this.adapter) {
+			this.dock.classList.add(`aichat-dock-${this.adapter.platformId.toLowerCase()}`);
+		}		
+        this.dock.onclick = () => this.toggle(true);
+        document.body.appendChild(this.dock);
+    }
+
+	/**
+     * Assembles core structural markup skeletons representing the persistent management node tray.
+     * @private
+     */
+    private createPanel(): void {
+        this.panel = document.createElement('div');
+        this.panel.className = 'aichat-panel';
+		this.panel.innerHTML = `
+			<div class="aichat-header">
+				<h2 style="color:white; margin:0; font-size:18px;">Chat Folder</h2>
+				<div style="display: flex; gap: 12px; align-items: center;">
+					<div id="add-folder-root" class="aichat-header-btn" title="Add New Top-level Folder">
+						${ICONS.ADD_FOLDER_HEADER}
+					</div>
+					<div id="aichat-close-btn" class="aichat-header-btn" title="Close">
+						${ICONS.CLOSE}
+					</div>
+				</div>
+			</div>
+			<div id="aichat-folder-list"></div>
+		`;
+        document.body.appendChild(this.panel);
+        this.bindGlobalEvents();
+    }
+
+	/*
+     * Controls the layout presence configuration parameters of both the drawer canvas and the toggle anchor.
+     * @param {boolean} open - Target state flag indicating true for presenting the pane layout.
+     */
+    public toggle(open: boolean): void {
+        if (!this.panel || !this.dock) return;
+        this.panel.classList.toggle('is-open', open);
+        this.dock.classList.toggle('is-hidden', open);
+    }
+
+	/**
+     * Sets up event delegation traps on the root panel node structure to streamline operational interactivity.
+     * Handles routing shortcuts, item collapsing persistence, form dispatchers, and record purging hooks.
+     * @private
+     */
+    private bindGlobalEvents(): void {
+
+        this.panel?.addEventListener('click', async (e) => {
+            const target = e.target as HTMLElement;
+            
+			// Intercept chat link anchor navigation targets to handle SPA smooth client transitions safely
+			const chatLink = target.closest('.aichat-chat-anchor') as HTMLAnchorElement | null;
+			if (chatLink) {
+                const chatId = chatLink.dataset.chatId;
+                if (chatId) {
+                    e.preventDefault();
+                    const url = this.adapter?.resolveChatUrl(chatId);
+                    await this.adapter?.smoothNavigate(chatId, url ?? chatLink.href);
+                }
+                return;
+			}
+
+			// Parse toggle actions responsible for manipulating local folder visual expansions
+			const folderIcon = target.closest('.toggle-folder') as HTMLElement;
+			if (folderIcon) {
+				const node = folderIcon.closest('.aichat-folder-node') as HTMLElement;
+				if (node) {
+
+					const subContainer = node.querySelector('.aichat-sub-container');
+					if (!subContainer || subContainer.children.length === 0) return;
+
+					const isCollapsed = node.classList.toggle('is-collapsed');
+					const id = folderIcon.dataset.id;
+					if (id) {
+						const folders = await FolderManager.getFolders();
+						const updateStatus = (list: FolderData[]): boolean => {
+							for (const f of list) {
+								if (f.id === id) {
+									f.isCollapsed = isCollapsed;
+									return true;
+								}
+								if (f.children && updateStatus(f.children)) return true;
+							}
+							return false;
+						};
+						updateStatus(folders);
+						await FolderManager.saveFolders(folders);
+						this.refresh(); // Refresh to update icon
+					}
+				}
+				return;
+			}
+
+
+			// ✅ Click on folder card (but not on action buttons) to toggle expand/collapse
+			const card = target.closest('.aichat-folder-card') as HTMLElement;
+			if (card && !target.closest('.aichat-actions')) {
+				const node = card.closest('.aichat-folder-node') as HTMLElement;
+				if (node) {
+					const subContainer = node.querySelector('.aichat-sub-container');
+					if (subContainer && subContainer.children.length > 0) {
+						// Toggle collapse state
+						const isCollapsed = node.classList.toggle('is-collapsed');
+						const id = card.dataset.id;
+						if (id) {
+							const folders = await FolderManager.getFolders();
+							const updateStatus = (list: FolderData[]): boolean => {
+								for (const f of list) {
+									if (f.id === id) {
+										f.isCollapsed = isCollapsed;
+										return true;
+									}
+									if (f.children && updateStatus(f.children)) return true;
+								}
+								return false;
+							};
+							updateStatus(folders);
+							await FolderManager.saveFolders(folders);
+							this.refresh();
+						}
+					}
+					return;
+				}
+			}			
+
+			if (target.closest('#aichat-close-btn')) {
+				this.toggle(false);
+				return;
+			}
+
+            if (target.closest('#add-folder-root')) {
+                this.showEditor(null);
+            }
+
+			const editBtn = target.closest('.edit-btn') as HTMLElement;
+			if (editBtn) {
+				const id = editBtn.dataset.id!;
+				const folders = await FolderManager.getFolders();
+				
+				const folderToEdit = this.findFolderById(folders, id);
+				
+				if (folderToEdit) {
+					this.showEditor(folderToEdit.parentId || null, folderToEdit);
+				}
+			}
+
+			const addSub = target.closest('.add-sub-btn') as HTMLElement;
+			if (addSub) {
+				const folderId = addSub.dataset.id!;
+				// The folder may be collapsed, which hides its children container via CSS.
+				// Expand it first so the inline editor we're about to inject is actually visible.
+				await FolderManager.expandFolder(folderId);
+				await this.refresh();
+				this.showEditor(folderId);
+			}
+
+			const delBtn = target.closest('.delete-btn') as HTMLElement;
+			if (delBtn) {
+				const id = delBtn.dataset.id!;
+				const node = delBtn.closest('.aichat-folder-node') as HTMLElement;
+				const isChatLeaf = node?.classList.contains('aichat-chat-leaf');
+				// Pull the display name straight from the rendered card so the confirm
+				// dialog can reference the actual item being deleted.
+				const titleEl = node?.querySelector('.aichat-folder-title');
+				const nodeName = (titleEl?.textContent || '').trim();
+				if (isChatLeaf) {
+					const parentNode = node.parentElement?.closest('.aichat-folder-node');
+					const cardEl = parentNode?.querySelector('.aichat-folder-card');
+					const parentId = cardEl instanceof HTMLElement ? cardEl.dataset.id : undefined;
+					if (parentId && confirm(`Remove "${nodeName}" from the folder?`)) {
+						const updated = await FolderManager.deleteNode(id, parentId);
+						this.render(updated);
+					}
+				} else {
+					if (confirm(`Delete folder "${nodeName}" and all its sub-folders?`)) {
+						const updated = await FolderManager.deleteNode(id);
+						this.render(updated);
+					}
+				}
+			}
+        });
+
+		// Add a safeguard to prevent duplicate event listener registration 
+        // in case the content script is re-injected by the browser.
+		if (!(window as any).__aichat_listener_attached) {
+			window.addEventListener('aichat:save-to-folder', async (e: Event) => {
+				const customEvent = e as CustomEvent<{ folderId: string; chatInfo: { id: string; title: string } }>;
+				const { folderId, chatInfo } = customEvent.detail;
+
+				if (!folderId || !chatInfo) return;
+
+				// Save directly under current single platform logic
+				await FolderManager.saveChatToFolder(folderId, chatInfo);
+				this.toggle(true);
+				await this.refresh();
+				this.flashNode(chatInfo.id); 
+			});
+
+			// Mark the listener as attached
+            (window as any).__aichat_listener_attached = true;
+		}
+    }
+
+	/**
+     * Recursively traverses the tree schema layers to resolve a folder record matching a target key identifier.
+     * @private
+     * @param {FolderData[]} folders - Structured data set array containing active operational profiles.
+     * @param {string} id - Explicit query lookup code key indicator.
+     * @returns {FolderData | null} Resolution representation object pointer, or null if unlocatable.
+     */
+	private findFolderById(folders: FolderData[], id: string): FolderData | null {
+		for (const folder of folders) {
+			if (folder.id === id) return folder;
+			if (folder.children && folder.children.length > 0) {
+				const found = this.findFolderById(folder.children, id);
+				if (found) return found;
+			}
+		}
+		return null;
+	}
+
+	/**
+     * Clears internal listing markers and triggers comprehensive re-injection sweeps into the structural UI container.
+     * @param {FolderData[]} folders - Complete hierarchical folder configuration matrix.
+     */
+    public render(folders: FolderData[]): void {
+        const list = document.getElementById('aichat-folder-list');
+        if (!list) return;
+
+        const rootFolders = folders.filter(f => !f.parentId);
+        list.innerHTML = this.renderFolderTree(rootFolders, 0);
+    }
+
+	/**
+     * Mounts or modifies inline form editor instances under contextual node hierarchies.
+     * Supports branching generation creation modes and inline detail corrections.
+     * @private
+     * @param {string | null} parentId - Tracking context indicator referencing the parent tree depth.
+     * @param {FolderData} [existingData] - Pre-existing folder payload entity used to differentiate update actions.
+     */
+	private showEditor(parentId: string | null, existingData?: FolderData): void {
+		let container: HTMLElement | null;
+		let referenceNode: Node | null = null;
+
+		if (existingData) {
+			// Edit mode: locate the card reference DOM node block currently targeted for adjustments
+			const card = this.panel?.querySelector(`.aichat-folder-card[data-id="${existingData.id}"]`);
+			const node = card?.closest('.aichat-folder-node') as HTMLElement;
+			container = node?.parentElement as HTMLElement;
+			referenceNode = node; // We'll insert at the current node's position
+		} else {
+			// Creation mode: append template anchors based on explicit target structural containers
+			container = parentId 
+				? document.getElementById(`children-of-${parentId}`) 
+				: document.getElementById('aichat-folder-list');
+			referenceNode = container?.firstChild || null;
+		}
+
+		if (!container || container.querySelector('.aichat-edit-card')) return;
+
+		const form = FolderEditor.render(
+			() => this.refresh(),
+			() => { 
+				form.remove();
+				if (existingData) {
+					(referenceNode as HTMLElement).style.display = 'block';
+				}
+			},
+			parentId,
+			existingData
+		);
+
+		if (existingData && referenceNode) {
+			(referenceNode as HTMLElement).style.display = 'none';
+			container.insertBefore(form, referenceNode);
+		} else {
+			container.insertBefore(form, referenceNode);
+		}
+
+		const input = form.querySelector('#new-folder-name') as HTMLInputElement | null;
+		if (input) {
+			// Provide localized grace intervals allowing complete client rendering tasks to resolve focus
+			setTimeout(() => {
+				input.focus();
+				input.select();
+			}, 50);
+		}		
+	}
+
+	/**
+     * Pulls structural storage parameters from core configurations and pushes updates downstream to view frameworks.
+     */
+    public async refresh(): Promise<void> {
+        const folders = await FolderManager.getFolders();
+        this.render(folders);
+    }
+
+	/**
+     * Configures extensive persistent Drag-and-Drop lifecycle bindings to oversee tree structure mutations.
+     * Employs strict boundary guards preventing inverted tree circular reference faults.
+     * @private
+     */
+	private bindDragEvents(): void {
+		let draggedId: string | null = null;
+		let lastPotentialNode: HTMLElement | null = null;
+		let currentTargetNode: HTMLElement | null = null;
+		let dragEnterTimer: number | null = null;
+
+		// Cleans up all temporary CSS classes used for highlighting drop zones
+		const clearStyles = () => {
+			this.panel?.querySelectorAll('.has-drop-before').forEach(n => 
+				n.classList.remove('has-drop-before'));
+			this.panel?.querySelectorAll('.drop-inside').forEach(c => 
+				c.classList.remove('drop-inside'));	
+			this.panel?.querySelectorAll('[data-drop-pos]').forEach(n => {
+					delete (n as HTMLElement).dataset.dropPos;
+    			});				
+		};
+
+		// Standardizes operational drag parameter attributes on transition end sequences
+		const finalizeDrag = () => {
+			if (dragEnterTimer) window.clearTimeout(dragEnterTimer);
+            clearStyles();
+            document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+
+            draggedId = null;
+            lastPotentialNode = null;
+            currentTargetNode = null;
+		};
+
+		// Start dragging the card
+		this.panel?.addEventListener('dragstart', (e) => {
+			const target = e.target as HTMLElement;
+			const card = target.closest('.aichat-folder-card') as HTMLElement;
+			if (!card) return;
+
+			draggedId = card.dataset.id || null;
+			card.classList.add('dragging');
+			
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'move';
+				e.dataTransfer.setData('text/plain', draggedId || '');
+			}
+		});
+
+		// Manage placeholder logic when entering a node
+		this.panel?.addEventListener('dragenter', (e) => {
+
+			const card = (e.target as HTMLElement).closest('.aichat-folder-card') as HTMLElement;
+            if (!card) return;
+
+            const node = card.closest('.aichat-folder-node') as HTMLElement;
+            if (!node || node === lastPotentialNode) return;
+
+            if (card.dataset.id === draggedId) return;
+
+			const draggedNode = document.querySelector('.dragging')?.closest('.aichat-folder-node');
+
+			// Defensive Rule: A parent folder structural segment cannot be dropped into itself or its own nested descendants
+			if (draggedNode && node && draggedNode.contains(node)) {
+				clearStyles();
+				return;
+			}
+
+			// Optimization bypass: Skip updates if checking adjacent layout segments immediately following
+			const draggedElement = document.querySelector('.dragging')?.closest('.aichat-folder-node');
+			if (draggedElement && draggedElement.nextElementSibling === node) {
+				clearStyles();
+				lastPotentialNode = node;
+				currentTargetNode = node;
+				return;
+			}
+
+			lastPotentialNode = node;
+			if (dragEnterTimer) window.clearTimeout(dragEnterTimer);
+
+			// Debounce processing tracks to suppress visual layout flickering spikes during transition events
+			dragEnterTimer = window.setTimeout(() => {
+				if (lastPotentialNode === node) {
+					clearStyles();
+					node.classList.add('has-drop-before');
+					currentTargetNode = node;
+				}
+				dragEnterTimer = null;
+			}, 100);
+		});
+
+		this.panel?.addEventListener('dragover', (e) => {
+			e.preventDefault();
+			if (!currentTargetNode) return;
+
+			// Terminal leaf nodes (chats) cannot act as containers for other folders/chats
+			if (currentTargetNode.classList.contains('aichat-chat-leaf')) {
+				return;
+			}
+
+			const card = currentTargetNode.querySelector('.aichat-folder-card') as HTMLElement;
+			const rect = card.getBoundingClientRect();
+
+			// Calculate the Y coordinate of the mouse relative to the card's top edge
+			const relY = e.clientY - rect.top;
+			const height = rect.height;
+
+			// Determine drop placement based on cursor vertical position:
+			// Top 20%    -> BEFORE target
+            // Middle 60% -> INSIDE target
+            // Bottom 20% -> AFTER target			
+			const isInside = relY > height * 0.2 && relY < height * 0.8;
+			const isAfter = relY >= height * 0.8;
+			const isLast = !currentTargetNode.nextElementSibling;
+
+			card.classList.toggle('drop-inside', isInside);
+
+			if (isLast) {
+				if (isAfter) {
+					currentTargetNode.dataset.dropPos = 'after';
+					currentTargetNode.classList.remove('has-drop-before');
+
+				} else if (currentTargetNode.dataset.dropPos === 'after' && relY <= height * 0.2) {
+					delete currentTargetNode.dataset.dropPos;
+					currentTargetNode.classList.toggle('has-drop-before', relY <= height * 0.2);
+				}
+			}
+		});
+
+
+		this.panel?.addEventListener('drop', async (e) => {
+			e.preventDefault();
+			
+			const targetNode = currentTargetNode;
+			const movingId = draggedId;
+			
+			if (!targetNode || !movingId) {
+				finalizeDrag();
+				return;
+			}
+
+			// Tear down visual UI configurations before launching storage mutation routines
+			const card = targetNode.querySelector('.aichat-folder-card') as HTMLElement;
+			const targetId = card?.dataset.id;
+			const isInside = card?.classList.contains('drop-inside');
+			const isAfter = targetNode.dataset.dropPos === 'after';
+
+			const draggedNode = document.querySelector('.dragging')?.closest('.aichat-folder-node');
+			const isDraggingChat = draggedNode?.classList.contains('aichat-chat-leaf');
+
+			// ✅ 判断目标节点是否还在 aichat-folder-list 内部（没有被拖出容器）
+			const isStillInsideContainer = targetNode.closest('#aichat-folder-list') !== null;
+
+
+			// Tear down visual UI configurations before launching storage mutation routines
+			finalizeDrag(); 
+
+			if (targetId && movingId !== targetId) {
+				let position: 'before' | 'inside' | 'after' = 'before';
+				if (isInside) position = 'inside';
+				else if (isAfter) position = 'after';
+
+
+				// ✅ 聊天记录不能被拖到 aichat-folder-list 外部（失去所属文件夹）
+				if (isDraggingChat && !isStillInsideContainer) {
+					return;
+				}
+
+
+				await FolderManager.reorder(movingId, targetId, position);
+				
+				window.requestAnimationFrame(() => {
+					this.refresh();
+				});
+			}
+		});
+
+		this.panel?.addEventListener('dragend', () => {
+			finalizeDrag();
+		});
+	}
+
+	/**
+	 * Briefly flashes the target card to draw the user's eye to something
+	 * that was just added (e.g. a newly saved chat).
+	 * @private
+	 * @param {string} id - data-id of the target folder-card element.
+	 */
+	private flashNode(id: string): void {
+		const card = this.panel?.querySelector(`.aichat-folder-card[data-id="${id}"]`) as HTMLElement | null;
+		if (!card) return;
+		// In case the panel content overflows, make sure the new item is actually in view.
+		card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		// Force a reflow so re-adding the class restarts the animation cleanly,
+		// even if this same id was flashed a moment ago.
+		card.classList.remove('aichat-just-added');
+		void card.offsetWidth;
+		card.classList.add('aichat-just-added');
+		card.addEventListener('animationend', () => {
+			card.classList.remove('aichat-just-added');
+		}, { once: true });
+	}
+
+	/**
+     * Recursively parses tree node parameters down into validated HTML templates.
+     * Dispatches proper layouts based on node behavior (abstract containers vs chat leaf markers).
+     * @private
+     * @param {FolderData[]} folders - Active nested segment structure array.
+     * @param {number} level - Numeric matrix tracking current parsing recursion depth.
+     * @returns {string} Compiled structural string markup template.
+     */
+	private renderFolderTree(folders: FolderData[], level: number): string {
+		return folders.map(folder => {
+			const hasChildren = folder.children && folder.children.length > 0;
+			const isCollapsed = !!folder.isCollapsed;
+			const collapseClass = isCollapsed ? 'is-collapsed' : '';
+
+			// Render branch leaf instances representing mapped native chat history items
+			if (folder.isChat) {
+				const targetChatId = folder.id;
+				let dynamicUrl = '#';
+				if (this.adapter) {
+					dynamicUrl = this.adapter.resolveChatUrl(targetChatId);
+				}
+				
+				return `
+				<div class="aichat-folder-node aichat-chat-leaf" data-id="${folder.id}">
+					<div class="aichat-folder-card aichat-chat-card" data-id="${folder.id}" draggable="true">
+						<div class="aichat-folder-header">
+							<span class="aichat-folder-title">
+								<a href="${dynamicUrl}" class="aichat-chat-anchor" title="${folder.name}" target="_blank" data-chat-id="${targetChatId}">
+									${folder.name}
+								</a>
+							</span>
+							<div class="aichat-actions">
+								<span class="delete-btn" data-id="${folder.id}">${ICONS.TRASH}</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				`;
+			}
+
+			// Inside the folder rendering section
+			const iconClass = hasChildren ? 'aichat-folder-icon colored toggle-folder' : 'aichat-folder-icon toggle-folder';
+			const glowStyle = hasChildren ? `style="--glow-color: ${folder.color};"` : '';
+			const folderIcon = (isCollapsed || !hasChildren) ? ICONS.FOLDER_CLOSED : ICONS.FOLDER_OPEN;
+
+			return `
+			<div class="aichat-folder-node ${collapseClass}" style="--glow-color: ${folder.color};">
+				<div class="aichat-folder-card" data-id="${folder.id}" draggable="true"
+					style="border-left: 4px solid ${folder.color};">
+					<div class="aichat-folder-header">
+						<span class="aichat-folder-title">
+							<span class="${iconClass}" data-id="${folder.id}" ${glowStyle}>
+								${folderIcon}
+							</span>
+							<span>${folder.name}</span>
+						</span>
+						<div class="aichat-actions">
+							<span class="edit-btn" data-id="${folder.id}">${ICONS.EDIT}</span>
+							<span class="add-sub-btn" data-id="${folder.id}">${ICONS.PLUS}</span>
+							<span class="delete-btn" data-id="${folder.id}">${ICONS.TRASH}</span>
+						</div>
+					</div>
+				</div>
+				<div class="aichat-sub-container" id="children-of-${folder.id}">
+					${this.renderFolderTree(folder.children || [], level + 1)}
+				</div>
+			</div>
+			`;
+
+
+		}).join('');
+	}
+
+}

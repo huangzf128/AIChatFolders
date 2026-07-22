@@ -1,0 +1,13 @@
+{
+	"manifest_version": 3,
+	"name": "AIChatFolders",
+	"version": "1.0",
+	"description": "Manage your AI chats with folders.",
+	"permissions": ["storage"],
+	"content_scripts": [
+	{
+		"matches": ["https://gemini.google.com/*", "https://chatgpt.com/*", "https://chat.deepseek.com/*", "https://claude.ai/*"],
+		"js": ["dist/content.js"]
+	}
+	]
+}
