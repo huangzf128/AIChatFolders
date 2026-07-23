@@ -10,7 +10,6 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
     platformId = 'deepseek';
     
     // Selector for DeepSeek's chat list container or action dropdown menu
-    // Note: Update this selector based on DeepSeek's actual DOM structure for chat actions/menus
     itemSelector = '.ds-floating-position-wrapper .ds-dropdown-menu'; 
 
 	constructor() {
@@ -129,8 +128,88 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }
 
-	getAccountKey(): string | null {
-		// TODO: Implement user ID extraction for this platform
-		return 'default_user';
+	/**
+	 * Reads the DeepSeek session token from localStorage.
+	 * Format: localStorage['userToken'] = '{"value":"<token>","__version":"0"}'
+	 * @private
+	 * @returns {string | null} The raw token string, or null if not found / malformed.
+	 */
+	private findAuthToken(): string | null {
+		const raw = localStorage.getItem('userToken');
+		if (!raw) return null;
+
+		try {
+			const parsed = JSON.parse(raw);
+			return parsed?.value ?? null;
+		} catch (e) {
+			console.warn('[AIChatFolders] Failed to parse DeepSeek userToken from localStorage.', e);
+			return null;
+		}
+	}
+
+	/**
+	 * Polls localStorage for the auth token until it appears or the timeout is reached.
+	 * This is necessary because content scripts can execute before the page's own
+	 * login/init JS has finished writing the token into localStorage — especially
+	 * right after a fresh login, where there's no DOM event we can hook into
+	 * (localStorage writes within the same tab don't fire the `storage` event).
+	 * @private
+	 * @param {number} timeoutMs - Maximum total time to wait, in milliseconds.
+	 * @param {number} intervalMs - Delay between each retry attempt, in milliseconds.
+	 * @returns {Promise<string | null>} The resolved token, or null if it never appeared in time.
+	 */
+	private async waitForAuthToken(timeoutMs = 8000, intervalMs = 300): Promise<string | null> {
+		const deadline = Date.now() + timeoutMs;
+
+		while (Date.now() < deadline) {
+			const token = this.findAuthToken();
+			if (token) return token;
+			await new Promise(resolve => setTimeout(resolve, intervalMs));
+		}
+
+		// One final check right at the deadline, just in case
+		return this.findAuthToken();
+	}
+
+	/**
+	 * Fetches the currently logged-in DeepSeek user's unique account ID.
+	 * Requires both the session cookie AND the Bearer token from localStorage.
+	 * @returns {Promise<string | null>}
+	 */
+	async getAccountKey(): Promise<string | null> {
+		if (this.accountKey) return this.accountKey;
+
+		// Wait (with polling) instead of failing immediately — the page's own
+		// login/init script may not have written the token yet at this point.
+		const token = await this.waitForAuthToken();
+		if (!token) {
+			console.warn('[AIChatFolders] DeepSeek auth token not found after waiting.');
+			return null;
+		}
+
+		try {
+			const resp = await fetch('https://chat.deepseek.com/api/v0/users/current', {
+				method: 'GET',
+				credentials: 'include',
+				headers: {
+					'Authorization': `Bearer ${token}`
+				}
+			});
+
+			if (!resp.ok) return null;
+
+			const json = await resp.json();
+			if (json.code === 0 && json.data?.biz_code === 0) {
+				const userId: string | undefined = json.data?.biz_data?.id;
+				if (userId) {
+					this.accountKey = userId;
+					return userId;
+				}
+			}
+			return null;
+		} catch (e) {
+			console.warn('[AIChatFolders] Failed to fetch DeepSeek user info.', e);
+			return null;
+		}
 	}
 }

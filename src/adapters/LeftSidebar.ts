@@ -27,19 +27,20 @@ export abstract class LeftSidebarAdapter {
 	/**
 	 * Scrapes and returns the unique user identifier (e.g., email or account ID) for the current platform session.
 	 * Must be implemented by all site-specific adapters.
+	 * NOTE: Changed to async because some platforms (e.g. DeepSeek) require a network
+	 * request to fetch the current user info, which cannot be done synchronously.
 	 * @abstract
-	 * @returns {string | null} Unique user identifier string, or null if the user is not logged in.
+	 * @returns {Promise<string | null>} Unique user identifier string, or null if the user is not logged in.
 	 */
-	abstract getAccountKey(): string | null;
+	abstract getAccountKey(): Promise<string | null>;
 
 	/**
-	 * Retrieves the cached user identifier.
+	 * Synchronously reads the already-resolved user id.
+	 * Call this AFTER getAccountKey() has been awaited once (e.g. during app startup in content.ts).
+	 * No Promise involved — just a plain field read, safe to call anywhere downstream (e.g. FolderManager).
 	 * @returns {string | null}
 	 */
-	public getCachedAccountKey(): string | null {
-		if (!this.accountKey) {
-		this.accountKey = this.getAccountKey();
-		}
+	public getResolvedAccountKey(): string | null {
 		return this.accountKey;
 	}
 

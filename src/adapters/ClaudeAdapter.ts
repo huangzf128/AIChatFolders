@@ -146,8 +146,9 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }
 
-	getAccountKey(): string | null {
+	async getAccountKey(): Promise<string | null> {
 		// TODO: Implement user ID extraction for this platform
-		return 'default_user';
+		this.accountKey = "default_user";
+		return this.accountKey;
 	}
 }

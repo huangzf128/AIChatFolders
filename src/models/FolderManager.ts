@@ -38,7 +38,7 @@ export class FolderManager {
             throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
         }
 
-		const userId = this.adapter.getCachedAccountKey();
+		const userId = this.adapter.getResolvedAccountKey();
 		if (!userId) {
 			throw new Error('Cannot resolve storage key: User is not logged in.');
 		}

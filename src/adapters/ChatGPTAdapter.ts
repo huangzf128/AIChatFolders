@@ -149,7 +149,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 		window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
 	}
 
-	getAccountKey(): string | null {
+	async getAccountKey(): Promise<string | null> {
 		if (this.accountKey) {
 			return this.accountKey;
 		}

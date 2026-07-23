@@ -21,7 +21,7 @@ async function initializeApp() {
 	if (!adapter) return;
 
 	// Check user login status and get User ID
-	const userId = adapter.getAccountKey();
+	const userId = await adapter.getAccountKey();
 	if (!userId) {
 		console.log('AIChatFolders: User is not logged in. Skipping plugin initialization.');
 		return;

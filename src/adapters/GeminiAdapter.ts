@@ -140,9 +140,9 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 	 * 2. Global WIZ_global_data script object
 	 * 3. Account avatar aria-label attribute in DOM
 	 * 
-	 * @returns {string | null} Normalized user ID or null if not logged in.
+	 * @returns {Promise<string | null>} Normalized user ID or null if not logged in.
 	 */
-	getAccountKey(): string | null {
+	async getAccountKey(): Promise<string | null> {
 		// Return cached value if already resolved
 		if (this.accountKey) return this.accountKey;
 
