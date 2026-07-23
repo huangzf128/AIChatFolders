@@ -1,17 +1,18 @@
 # AI Chat Folders
 
-> Organize ChatGPT, Gemini, Claude, and DeepSeek conversations with folders.  
-> 
+> Organize conversations across your favorite AI chat platforms with folders.
 
 A lightweight browser extension that brings a familiar folder system to today's AI chat platforms.
 
-Instead of scrolling through hundreds of conversations, you can organize them into custom folders, making it easier to manage projects, research, work, and personal chats.
+Currently supports ChatGPT, Gemini, Claude, DeepSeek, and more coming soon.
+
+> **AI Chat Folders organizes your AI workspace without copying or storing your conversation content.**
 
 ---
 
 ## Features
 
-- 📁 Create unlimited folders and subfolders
+- 📁 Create folders and subfolders to organize your AI conversations
 - 💬 Save conversations into folders
 - 🎯 Native integration with each AI platform
 - 🚀 Lightweight and fast
@@ -68,7 +69,7 @@ Coming soon.
 ### Build from source
 
 ```bash
-git clone https://github.com/yourname/AIChatFolders.git
+git clone https://github.com/huangzf128/AIChatFolders.git
 
 cd AIChatFolders
 
@@ -110,14 +111,26 @@ Coming soon.
 
 ---
 
+## Important
+
+AI Chat Folders **does not store or back up your conversations**.
+
+The extension only stores folder information and the relationship between folders and conversations.
+
+If you delete a conversation from ChatGPT, Gemini, Claude, or DeepSeek, it is permanently removed from the platform and will also disappear from AI Chat Folders.
+
+Think of AI Chat Folders as a file manager—it organizes your conversations, but it does not own or copy them.
+
 ## Privacy
 
-AI Chat Folders stores all data locally using the browser's storage API.
+AI Chat Folders is designed with privacy in mind.
 
-No conversations are uploaded.
-No tracking.
-No analytics.
-No account required.
+- Your conversations are **never copied**.
+- Your conversations are **never uploaded**.
+- The extension only stores folder metadata locally in your browser.
+- No analytics.
+- No tracking.
+- No account required.
 
 ---
 

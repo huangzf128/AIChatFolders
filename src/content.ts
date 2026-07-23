@@ -20,14 +20,17 @@ async function initializeApp() {
     const adapter = getAdapter();
 	if (!adapter) return;
 
+	// Check user login status and get User ID
+	const userId = adapter.getAccountKey();
+	if (!userId) {
+		console.log('AIChatFolders: User is not logged in. Skipping plugin initialization.');
+		return;
+	}
+
 	FolderManager.init(adapter);
 
-    // 1. Initialize UI
+    // Initialize UI
     const sidebar = new RightSidebar(adapter); 
-
-    // 2. Load and render data
-    const folders = await FolderManager.getFolders();
-    sidebar.render(folders);
 
     console.log('AIChatFolders: App initialized.');
 }

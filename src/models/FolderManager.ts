@@ -15,7 +15,7 @@ const MAX_CHAT_NAME_LENGTH = 80;
  */
 export class FolderManager {
 
-    private static STORAGE_KEY_PREFIX = 'ai_chat_folders';
+    private static STORAGE_KEY_PREFIX = 'acf';
     private static adapter: LeftSidebarAdapter | null = null;
 
 	/**
@@ -37,7 +37,15 @@ export class FolderManager {
         if (!this.adapter) {
             throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
         }
-        return `${this.STORAGE_KEY_PREFIX}_${this.adapter.platformId}`;
+
+		const userId = this.adapter.getCachedAccountKey();
+		if (!userId) {
+			throw new Error('Cannot resolve storage key: User is not logged in.');
+		}
+
+		// Sanitize userId to ensure safe key format
+		const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return `${this.STORAGE_KEY_PREFIX}_${this.adapter.platformId}_${sanitizedUserId}`;
     }
 
 	/**

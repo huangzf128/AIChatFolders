@@ -7,7 +7,7 @@ import { FolderManager } from '../models/FolderManager';
 import { ICONS } from '../ui/icons';
 
 export class DeepSeekAdapter extends LeftSidebarAdapter {
-    platformId = 'DeepSeek';
+    platformId = 'deepseek';
     
     // Selector for DeepSeek's chat list container or action dropdown menu
     // Note: Update this selector based on DeepSeek's actual DOM structure for chat actions/menus
@@ -128,4 +128,9 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
         window.history.pushState({}, '', targetUrl);
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }
+
+	getAccountKey(): string | null {
+		// TODO: Implement user ID extraction for this platform
+		return 'default_user';
+	}
 }

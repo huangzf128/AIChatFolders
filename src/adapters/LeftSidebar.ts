@@ -18,6 +18,30 @@ export abstract class LeftSidebarAdapter {
      * @protected
      */
     protected currentTargetChat: { id: string; title: string } | null = null;
+	/**
+   	* Cached unique identifier for the currently logged-in user.
+   	* @protected
+   	*/
+    protected accountKey: string | null = null;
+
+	/**
+	 * Scrapes and returns the unique user identifier (e.g., email or account ID) for the current platform session.
+	 * Must be implemented by all site-specific adapters.
+	 * @abstract
+	 * @returns {string | null} Unique user identifier string, or null if the user is not logged in.
+	 */
+	abstract getAccountKey(): string | null;
+
+	/**
+	 * Retrieves the cached user identifier.
+	 * @returns {string | null}
+	 */
+	public getCachedAccountKey(): string | null {
+		if (!this.accountKey) {
+		this.accountKey = this.getAccountKey();
+		}
+		return this.accountKey;
+	}
 
 	/**
      * Initializes global click listeners to capture chat metadata (ID and Title) 

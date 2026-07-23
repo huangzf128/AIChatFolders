@@ -7,7 +7,7 @@ import { FolderManager } from '../models/FolderManager';
 import { ICONS } from '../ui/icons';
 
 export class ClaudeAdapter extends LeftSidebarAdapter {
-    platformId = 'Claude';
+    platformId = 'claude';
     
     // Selector for Claude's action menu container (adjust selector based on actual DOM inspection)
     itemSelector = '[role="menu"] div:first-child';
@@ -145,4 +145,9 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
         window.history.pushState({}, '', targetUrl);
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }
+
+	getAccountKey(): string | null {
+		// TODO: Implement user ID extraction for this platform
+		return 'default_user';
+	}
 }

@@ -8,7 +8,7 @@ import { ICONS } from '../ui/icons';
 import { FolderManager } from '../models/FolderManager';
 
 export class ChatGPTAdapter extends LeftSidebarAdapter {
-    platformId = 'ChatGPT';
+    platformId = 'chatgpt';
     // Target selector for ChatGPT's native popover action menu
     itemSelector = '[role="menu"] > div[role="group"]:last-child';
 
@@ -148,4 +148,31 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 		// Dispatch a popstate event to notify the frontend framework (Next.js) that the route has changed.
 		window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
 	}
+
+	getAccountKey(): string | null {
+		if (this.accountKey) {
+			return this.accountKey;
+		}
+
+		const script = document.getElementById("client-bootstrap");
+
+		if (!script) {
+			return null;
+		}
+
+		try {
+			const data = JSON.parse(script.textContent ?? "");
+
+			this.accountKey =
+				data?.session?.account?.id ??
+				data?.session?.user?.id ??
+				data?.session?.user?.email ??
+				null;
+
+			return this.accountKey;
+		} catch (e) {
+			console.warn("[AIChatFolders] Parse client-bootstrap failed.", e);
+			return null;
+		}
+	}	
 }

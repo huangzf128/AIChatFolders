@@ -6,7 +6,7 @@ import { LeftSidebarAdapter } from './LeftSidebar';
 import { FolderManager } from '../models/FolderManager';
 
 export class GeminiAdapter extends LeftSidebarAdapter {
-    platformId = 'Gemini';
+    platformId = 'gemini';
     // Gemini's menu content container selector
     itemSelector = 'div.mat-mdc-menu-content';
 
@@ -132,5 +132,63 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 		}
 
 		window.location.href = fallbackUrl;
+	}
+
+	/**
+	 * Extract unique user ID (email or hash) via fallback methods:
+	 * 1. <meta name="og-profile-acct"> tag in <head>
+	 * 2. Global WIZ_global_data script object
+	 * 3. Account avatar aria-label attribute in DOM
+	 * 
+	 * @returns {string | null} Normalized user ID or null if not logged in.
+	 */
+	getAccountKey(): string | null {
+		// Return cached value if already resolved
+		if (this.accountKey) return this.accountKey;
+
+		// Strategy 1: Read from <meta name="og-profile-acct" content="...">
+		const metaEl = document.querySelector('meta[name="og-profile-acct"]');
+		if (metaEl) {
+			const content = metaEl.getAttribute('content')?.trim();
+			if (content) {
+				this.accountKey = content;
+				return this.accountKey;
+			}
+		}
+
+		// Strategy 2: Extract email or account hash from <script> WIZ_global_data
+		const scripts = document.querySelectorAll('script');
+		for (const script of Array.from(scripts)) {
+			const text = script.textContent || '';
+			if (text.includes('WIZ_global_data')) {
+				// Match standard email pattern inside JSON string
+				const emailMatch = text.match(/"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"/);
+				if (emailMatch && emailMatch[1]) {
+				this.accountKey = emailMatch[1];
+				return this.accountKey;
+				}
+
+				// Alternative: Match Google Account internal ID string (S086c)
+				const accountIdMatch = text.match(/"S086c":"([^"]+)"/);
+				if (accountIdMatch && accountIdMatch[1]) {
+				this.accountKey = accountIdMatch[1];
+				return this.accountKey;
+				}
+			}
+		}
+
+		// Strategy 3: Parse email from DOM aria-label attributes (e.g., Google Account link/avatar)
+		const profileElements = document.querySelectorAll('[aria-label*="@"]');
+		for (const el of Array.from(profileElements)) {
+			const label = el.getAttribute('aria-label') || '';
+			const emailMatch = label.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+			if (emailMatch) {
+				this.accountKey = emailMatch[0];
+				return this.accountKey;
+			}
+		}
+
+		// Return null if all extraction strategies failed (User not logged in)
+		return null;
 	}	
 }
