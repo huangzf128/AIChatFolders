@@ -12,17 +12,25 @@ export abstract class LeftSidebarAdapter {
     abstract platformId: string;	// Unique identifier string for the target AI platform (e.g., 'gemini', 'chatgpt')
     abstract itemSelector: string;	// DOM selector string used to target individual chat list items in the native sidebar
     protected closeTimer: any = null;	// Reference identifier for the delayed menu closure timer mechanism
+
 	/**
      * Shared state to temporarily cache the target chat metadata.
      * Populated by the initClickListener before the native context menu renders.
      * @protected
      */
     protected currentTargetChat: { id: string; title: string } | null = null;
+
 	/**
    	* Cached unique identifier for the currently logged-in user.
    	* @protected
    	*/
     protected accountKey: string | null = null;
+
+	/**
+	 * Explicitly initializes DOM listeners and UI injection for the adapter.
+	 * This should only be called after confirming the user is logged in.
+	 */
+	abstract init(): void;
 
 	/**
 	 * Scrapes and returns the unique user identifier (e.g., email or account ID) for the current platform session.

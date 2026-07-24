@@ -27,6 +27,7 @@ async function initializeApp() {
 		return;
 	}
 
+	adapter.init();
 	FolderManager.init(adapter);
 
     // Initialize UI

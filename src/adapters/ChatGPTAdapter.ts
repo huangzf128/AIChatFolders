@@ -14,8 +14,14 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 
 	constructor() {
         super();
-        this.initClickListener();
     }
+
+	/**
+	 * Invoked only after user authentication is confirmed in content.ts
+	 */
+	public init(): void {
+		this.initClickListener();
+	}
 
     initClickListener(): void {
         document.body.addEventListener('click', (e) => {
