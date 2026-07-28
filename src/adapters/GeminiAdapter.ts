@@ -84,6 +84,26 @@ export class GeminiAdapter extends LeftSidebarAdapter {
         button.addEventListener('mouseleave', () => this.startCloseTimer());		
 	}
 
+	/**
+	 * Gemini's menu is an Angular CDK Overlay, not a "listen on document,
+	 * check outside" pattern like the other platforms. Outside-click
+	 * dismissal works because a real `.cdk-overlay-backdrop` element sits on
+	 * top of the page and IS the click's target (via hit-testing) — a
+	 * synthetic event dispatched elsewhere in the document never reaches
+	 * its listener. Click the backdrop directly; fall back to Escape
+	 * (base class) if it isn't present for some reason.
+	 * @protected
+	 * @override
+	 */
+	protected override closeNativeMenu(): void {
+		const backdrop = document.querySelector('.cdk-overlay-backdrop') as HTMLElement | null;
+		if (backdrop) {
+			backdrop.click();
+		} else {
+			super.closeNativeMenu();
+		}
+	}
+
 	getChatInfo() {
 
 		if (this.currentTargetChat) {

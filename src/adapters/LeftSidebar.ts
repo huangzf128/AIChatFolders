@@ -125,7 +125,7 @@ export abstract class LeftSidebarAdapter {
 					detail: { folderId: folder.id, chatInfo: info }
 				}));
 				this.removeCascadeMenus();
-				document.body.click();
+				this.closeNativeMenu();
 			});
 
 			if (hasChildren) {
@@ -167,6 +167,24 @@ export abstract class LeftSidebarAdapter {
 
 		menu.style.top = `${adjustedY}px`;
 		menu.style.left = `${adjustedX}px`;
+	}
+
+	/**
+	 * Dismisses the native platform's own dropdown/context menu that our
+	 * cascade menu is anchored inside. Default: simulate a real Escape
+	 * keypress, which almost every accessible menu/overlay listens for.
+	 * Dispatch on document.body (not document) — an event's propagation
+	 * path only includes the target's ANCESTORS, and body is document's
+	 * descendant, not its ancestor, so dispatching on document never
+	 * reaches a body-bound listener.
+	 * @protected
+	 * @virtual
+	 */
+	protected closeNativeMenu(): void {
+		document.body.dispatchEvent(new KeyboardEvent('keydown', {
+			key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+			bubbles: true, cancelable: true,
+		}));
 	}
 
 	/**
