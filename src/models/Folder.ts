@@ -35,3 +35,19 @@ export interface FolderData {
     /** Discriminator flag; true if this node is a stylized chat leaf rather than an abstract folder */
     isChat?: boolean;
 }
+
+export const DEFAULT_SETTINGS: SettingsData = {
+  hideChat: false,
+};
+
+/** User-level preferences stored alongside the folder tree. */
+export interface SettingsData {
+  /** Whether chats already saved to a folder should be hidden from the native sidebar. */
+  hideChat: boolean;
+}
+
+/** Full shape persisted under a single chrome.storage.local key. */
+export interface StorageSchema {
+  folders: FolderData[];
+  settings: SettingsData;
+}

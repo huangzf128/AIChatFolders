@@ -13,6 +13,34 @@ export abstract class LeftSidebarAdapter {
     abstract itemSelector: string;	// DOM selector string used to target individual chat list items in the native sidebar
     protected closeTimer: any = null;	// Reference identifier for the delayed menu closure timer mechanism
 
+	// ── Native sidebar row lookup ──────────────────────────────────────────
+	// All four platforms share the same "container → rows → link → chatId"
+	// shape, so the traversal logic lives here once; subclasses only declare
+	// the three selectors below.
+
+	/**
+	* CSS selector for the container(s) holding the native chat list.
+	* querySelectorAll is used (not querySelector), because some platforms
+	* render multiple independent sections — e.g. Claude's "Starred" and
+	* "Recents" are two separate <ul class="flex flex-col"> elements.
+	*/
+	protected abstract historySelector: string;
+
+	/**
+	* CSS selector (relative to the container) identifying a single row.
+	* Most platforms wrap the link in a non-anchor element (e.g. 'li', a
+	* custom tag). For platforms where the row IS the anchor itself
+	* (e.g. DeepSeek), set this to the same value as `linkSelector`.
+	*/
+	protected abstract rowSelector: string;
+
+	/**
+	* CSS selector identifying the chat's anchor link — either the row
+	* itself or a descendant of it. Must match a URL whose LAST path
+	* segment is the chat id (e.g. 'a[href*="/c/"]').
+	*/
+	protected abstract linkSelector: string;
+
 	/**
      * Shared state to temporarily cache the target chat metadata.
      * Populated by the initClickListener before the native context menu renders.
@@ -208,4 +236,29 @@ export abstract class LeftSidebarAdapter {
         // Default: full page reload
         window.location.href = fallbackUrl;
     }
+
+	/** Returns every chat row currently rendered in the native sidebar, paired with its chat id. */
+	public getChatRows(): { chatId: string; row: HTMLElement }[] {
+		const containers = document.querySelectorAll<HTMLElement>(this.historySelector);
+		const result: { chatId: string; row: HTMLElement }[] = [];
+		containers.forEach(container => {
+			container.querySelectorAll<HTMLElement>(this.rowSelector).forEach(row => {
+				const chatId = this.extractChatIdFromRow(row);
+				if (chatId) result.push({ chatId, row });
+			});
+		});
+		return result;
+	}
+
+	/** Finds the native sidebar row for a specific chat id, or null if it isn't rendered yet. */
+	public getChatRowById(chatId: string): HTMLElement | null {
+		return this.getChatRows().find(item => item.chatId === chatId)?.row ?? null;
+	}
+
+	/** Extracts the chat id from a row's anchor link (which may be the row itself). */
+	private extractChatIdFromRow(row: HTMLElement): string {
+		const link = (row.matches(this.linkSelector) ? row : row.querySelector(this.linkSelector)) as HTMLAnchorElement | null;
+		return link?.getAttribute('href')?.split('/').pop() || '';
+	}
+
 }

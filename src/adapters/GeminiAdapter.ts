@@ -9,6 +9,9 @@ export class GeminiAdapter extends LeftSidebarAdapter {
     platformId = 'gemini';
     // Gemini's menu content container selector
     itemSelector = 'div.mat-mdc-menu-content';
+	protected override historySelector = '#sidenav-section-content-chats';
+	protected override rowSelector = 'gem-nav-list-item';
+	protected override linkSelector = 'a[href*="/app/"]';
 
 	constructor() {
         super();
@@ -196,5 +199,6 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 
 		// Return null if all extraction strategies failed (User not logged in)
 		return null;
-	}	
+	}
+	
 }

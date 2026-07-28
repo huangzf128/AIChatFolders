@@ -8,9 +8,11 @@ import { ICONS } from '../ui/icons';
 
 export class DeepSeekAdapter extends LeftSidebarAdapter {
     platformId = 'deepseek';
-    
     // Selector for DeepSeek's chat list container or action dropdown menu
     itemSelector = '.ds-floating-position-wrapper .ds-dropdown-menu'; 
+	protected override historySelector = 'div.ds-scroll-area.ds-scroll-area--show-on-focus-within';
+	protected override rowSelector = 'a[href*="/a/chat/s/"]';
+	protected override linkSelector = 'a[href*="/a/chat/s/"]';
 
 	constructor() {
         super();
@@ -218,4 +220,5 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
 			return null;
 		}
 	}
+
 }

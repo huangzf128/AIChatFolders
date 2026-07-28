@@ -7,8 +7,12 @@ import { FolderManager } from '../models/FolderManager';
 import { FolderEditor } from './FolderEditor';
 import { ICONS } from './icons';
 import { GlobalStyles } from '../ui/styles/index';
-import type { FolderData } from '../models/Folder';
+import type { FolderData, SettingsData } from '../models/Folder';
+import { DEFAULT_SETTINGS } from '../models/Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
+
+// Class name applied to native sidebar rows that should be hidden
+const NATIVE_HIDDEN_CLASS = 'aichat-native-hidden';
 
 /**
  * Main presentation component responsible for rendering and handling interactions
@@ -18,6 +22,17 @@ export class RightSidebar {
     private panel: HTMLElement | null = null;	// The root DOM reference containing the rendered folder framework drawer
     private dock: HTMLElement | null = null;	// The floating trigger handle injected globally into the document viewport edge
 	private adapter: LeftSidebarAdapter | null; // Reference to the active site-specific adapter layer
+	private settings: SettingsData = DEFAULT_SETTINGS;
+
+	// Chat ids currently saved somewhere in the folder tree, used by the full-scan toggle
+	private savedChatIds = new Set<string>();
+
+	// Watches the whole document for DOM mutations, so lazily-loaded native
+	// sidebar rows (initial hydration AND further items loaded on scroll)
+	// get hidden/shown automatically, with no polling/timeout needed.
+	private mutationObserver: MutationObserver | null = null;
+	// Batches multiple mutation callbacks into a single DOM pass per animation frame.
+	private applyScheduled = false;
 
 	/**
      * Constructs the RightSidebar interface component.
@@ -39,7 +54,16 @@ export class RightSidebar {
         this.createPanel();
 		this.bindDragEvents();
 
+		this.settings = await FolderManager.getSettings();
+		this.updateHideToggleUI();
+
         await this.refresh();
+
+		// Start watching BEFORE the manual pass below. Any mutation that happens
+		// in between (e.g. the native sidebar still hydrating) is never missed —
+		// it just triggers another apply pass through the observer callback.
+		this.startObservingNativeSidebar();
+		this.applyHideToAllRows(); // handle whatever native rows are already in the DOM right now		
     }
 
 	/**
@@ -69,6 +93,33 @@ export class RightSidebar {
     }
 
 	/**
+	 * Starts observing the whole document for DOM mutations. Started once and
+	 * kept alive for the panel's whole lifetime; the callback itself decides
+	 * whether there's actually anything to do.
+	 */
+	private startObservingNativeSidebar(): void {
+		if (this.mutationObserver) return;
+		this.mutationObserver = new MutationObserver(() => {
+			if (!this.settings.hideChat) return; // nothing to do while the feature is off
+			this.scheduleApplyHideToAllRows();
+		});
+		this.mutationObserver.observe(document.body, { childList: true, subtree: true });
+	}
+
+	/** Coalesces bursts of mutation events (e.g. many rows appearing at once) into one DOM pass. */
+	private scheduleApplyHideToAllRows(): void {
+		if (this.applyScheduled) return;
+		this.applyScheduled = true;
+		requestAnimationFrame(() => {
+			try {
+				this.applyHideToAllRows();
+			} finally {
+				this.applyScheduled = false; // reset after the pass finishes (or throws), not before
+			}
+		});
+	}
+
+	/**
      * Assembles core structural markup skeletons representing the persistent management node tray.
      * @private
      */
@@ -79,6 +130,9 @@ export class RightSidebar {
 			<div class="aichat-header">
 				<h2 style="color:white; margin:0; font-size:18px;">Chat Folder</h2>
 				<div style="display: flex; gap: 12px; align-items: center;">
+					<div id="aichat-toggle-hide-btn" class="aichat-header-btn" title="Hide chats already saved to a folder">
+						${ICONS.EYE}
+					</div>				
 					<div id="add-folder-root" class="aichat-header-btn" title="Add New Top-level Folder">
 						${ICONS.ADD_FOLDER_HEADER}
 					</div>
@@ -155,7 +209,6 @@ export class RightSidebar {
 				}
 				return;
 			}
-
 
 			// ✅ Click on folder card (but not on action buttons) to toggle expand/collapse
 			const card = target.closest('.aichat-folder-card') as HTMLElement;
@@ -235,13 +288,28 @@ export class RightSidebar {
 					if (parentId && confirm(`Remove "${nodeName}" from the folder?`)) {
 						const updated = await FolderManager.deleteNode(id, parentId);
 						this.render(updated);
+						this.showRowById(id); // restore this one native row
 					}
 				} else {
 					if (confirm(`Delete folder "${nodeName}" and all its sub-folders?`)) {
+						// Collect every chat id under this folder BEFORE deleting, so we know what to restore
+						const folders = await FolderManager.getFolders();
+						const target = this.findFolderById(folders, id);
+						const chatIdsToRestore = target ? this.collectChatIds(target) : [];
+
 						const updated = await FolderManager.deleteNode(id);
 						this.render(updated);
+						chatIdsToRestore.forEach(cid => this.showRowById(cid)); // restore a batch of native rows
 					}
 				}
+			}
+
+			if (target.closest('#aichat-toggle-hide-btn')) {
+				this.settings.hideChat = !this.settings.hideChat;
+				await FolderManager.updateSettings(this.settings);
+				this.applyHideToAllRows(); // Full scan: loop every native row, decide hide/show
+				this.updateHideToggleUI();
+				return;
 			}
         });
 
@@ -259,6 +327,7 @@ export class RightSidebar {
 				this.toggle(true);
 				await this.refresh();
 				this.flashNode(chatInfo.id); 
+				this.hideRowById(chatInfo.id); // NEW: hide this one native row (only if toggle is on)
 			});
 
 			// Mark the listener as attached
@@ -358,7 +427,20 @@ export class RightSidebar {
     public async refresh(): Promise<void> {
         const folders = await FolderManager.getFolders();
         this.render(folders);
+		this.savedChatIds = this.collectAllChatIds(folders);
     }
+
+	private collectAllChatIds(folders: FolderData[]): Set<string> {
+		const ids = new Set<string>();
+		const walk = (list: FolderData[]) => {
+			for (const f of list) {
+				if (f.isChat) ids.add(f.id);
+				if (f.children?.length) walk(f.children);
+			}
+		};
+		walk(folders);
+		return ids;
+	}
 
 	/**
      * Configures extensive persistent Drag-and-Drop lifecycle bindings to oversee tree structure mutations.
@@ -509,9 +591,8 @@ export class RightSidebar {
 			const draggedNode = document.querySelector('.dragging')?.closest('.aichat-folder-node');
 			const isDraggingChat = draggedNode?.classList.contains('aichat-chat-leaf');
 
-			// ✅ 判断目标节点是否还在 aichat-folder-list 内部（没有被拖出容器）
+			// ✅ Determine whether the target node is still inside aichat-folder-list (i.e., has not been dragged out of the container).
 			const isStillInsideContainer = targetNode.closest('#aichat-folder-list') !== null;
-
 
 			// Tear down visual UI configurations before launching storage mutation routines
 			finalizeDrag(); 
@@ -521,12 +602,10 @@ export class RightSidebar {
 				if (isInside) position = 'inside';
 				else if (isAfter) position = 'after';
 
-
-				// ✅ 聊天记录不能被拖到 aichat-folder-list 外部（失去所属文件夹）
+				// ✅ The chat record must not be dragged outside of aichat-folder-list (i.e., it must not lose its parent folder).
 				if (isDraggingChat && !isStillInsideContainer) {
 					return;
 				}
-
 
 				await FolderManager.reorder(movingId, targetId, position);
 				
@@ -633,6 +712,70 @@ export class RightSidebar {
 
 
 		}).join('');
+	}
+
+	/** Hides a single native sidebar row by chat id, only when the toggle is currently on. */
+	private hideRowById(chatId: string): void {
+		if (!this.settings.hideChat) return;
+		const row = this.adapter?.getChatRowById(chatId);
+		row?.classList.add(NATIVE_HIDDEN_CLASS);
+	}
+
+	/** Restores a single native sidebar row by chat id. Safe to call even if it wasn't hidden. */
+	private showRowById(chatId: string): void {
+		const row = this.adapter?.getChatRowById(chatId);
+		row?.classList.remove(NATIVE_HIDDEN_CLASS);
+	}
+
+	/** Full scan: walks every currently rendered native row and hides/shows it based on current settings. */
+	private applyHideToAllRows(): void {
+		if (!this.adapter) return;
+		this.adapter.getChatRows().forEach(({ chatId, row }) => {
+			const shouldHide = this.settings.hideChat && this.savedChatIds.has(chatId);
+			row.classList.toggle(NATIVE_HIDDEN_CLASS, shouldHide);
+		});
+	}
+
+	/** Recursively collects every chat leaf id under a given folder node (including itself if it's a chat). */
+	private collectChatIds(node: FolderData): string[] {
+		const ids: string[] = [];
+		const walk = (n: FolderData) => {
+			if (n.isChat) ids.push(n.id);
+			(n.children || []).forEach(walk);
+		};
+		walk(node);
+		return ids;
+	}
+
+	/** Syncs the header button's visual "active" state with the current toggle value. */
+	private updateHideToggleUI(): void {
+		const btn = this.panel?.querySelector('#aichat-toggle-hide-btn');
+		if (!btn) return;
+		btn.classList.toggle('is-active', this.settings.hideChat);
+		btn.innerHTML = this.settings.hideChat ? ICONS.EYE_OFF : ICONS.EYE;
+		btn.setAttribute('title', this.settings.hideChat
+			? 'Show all chats in the native sidebar'
+			: 'Hide chats already saved to a folder');
+	}
+
+	private hideSettingKey(): string {
+		const userId = this.adapter?.getResolvedAccountKey() || 'anon';
+		const sanitized = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return `acf_hideAdded_${this.adapter?.platformId}_${sanitized}`;
+	}
+
+	private loadHideSetting(): Promise<boolean> {
+		const key = this.hideSettingKey();
+		return new Promise(resolve => {
+			chrome.storage.local.get([key], (result) => resolve(!!result[key]));
+		});
+	}
+
+	private saveHideSetting(value: boolean): Promise<void> {
+		const key = this.hideSettingKey();
+		return new Promise(resolve => {
+			chrome.storage.local.set({ [key]: value }, () => resolve());
+		});
 	}
 
 }

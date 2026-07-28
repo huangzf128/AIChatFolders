@@ -21,9 +21,11 @@ const UUID_PATTERN = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4
 
 export class ClaudeAdapter extends LeftSidebarAdapter {
     platformId = 'claude';
-    
     // Selector for Claude's action menu container (adjust selector based on actual DOM inspection)
     itemSelector = '[role="menu"] div:first-child';
+	protected override historySelector = 'ul.flex.flex-col';
+	protected override rowSelector = 'li';
+	protected override linkSelector = 'a[href*="/chat/"]';
 
 	constructor() {
         super();
@@ -269,4 +271,5 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 			const timer = setTimeout(() => finish(null), timeoutMs);
 		});
 	}
+
 }

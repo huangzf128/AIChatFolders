@@ -51,5 +51,14 @@ export const ComponentStyles = `
     .btn-save { background: #10a37f; color: white; }
     .btn-save:hover { background: #1a7f64; }
     .btn-cancel { background: #444; color: #ccc; }
-    .btn-cancel:hover { background: #555; }   
+    .btn-cancel:hover { background: #555; }  
+
+	.aichat-native-hidden {
+		display: none !important;
+	}
+	.aichat-header-btn.is-active {
+		color: #10a37f;
+		background: rgba(16, 163, 127, 0.15);
+	}	
+
 `;

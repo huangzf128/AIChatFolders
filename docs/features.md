@@ -134,15 +134,4 @@ The project follows the **Adapter Pattern** to ensure cross-platform reusability
 
 ---
 
-## 7. How to Contribute
-
-We welcome issues, feature requests, and pull requests. Before contributing, please read the design documents in `docs/design/` (if available) and ensure your code passes the TypeScript type checker:(`npm run check`)
-
----
-
-## 8. License
-MIT License © 2026 huangzf128
-
----
-
 > This document evolves with the project. If you find any discrepancies, please feel free to update it or open an issue.

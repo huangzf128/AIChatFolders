@@ -129,16 +129,4 @@
 
 ---
 
-## 7. 如何贡献
-
-欢迎提交 Issue 或 Pull Request。开发前请阅读项目 `docs/design` 下的设计文档（如有），并确保代码通过 TypeScript 类型检查 (`npm run check`)。
-
----
-
-## 8. 许可
-
-MIT License © 2026 huangzf128
-
----
-
 > 本文档会随项目功能演进持续更新。若发现描述与实际不符，请及时修正。

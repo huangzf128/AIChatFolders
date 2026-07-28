@@ -3,7 +3,8 @@
  * @description Handles data persistence and tree-structure CRUD operations 
  * for folders and chat items using chrome.storage.local.
  */
-import type { FolderData, ChatItem } from './Folder';
+import type { FolderData, StorageSchema, SettingsData } from './Folder';
+import { DEFAULT_SETTINGS } from './Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
 
 const MAX_FOLDER_NAME_LENGTH = 40;
@@ -49,16 +50,54 @@ export class FolderManager {
     }
 
 	/**
+	 * Reads the full { folders, settings } object for the current key.
+	 * Also normalizes the legacy format, where the key used to hold a plain
+	 * FolderData[] array directly (before settings were introduced).
+	 */
+	private static async getStorageData(): Promise<StorageSchema> {
+		const key = this.getStorageKey();
+		return new Promise((resolve) => {
+			chrome.storage.local.get([key], (result) => {
+				const raw = result[key];
+				const data = (raw as Partial<StorageSchema>) || {};
+				resolve({
+					folders: data.folders || [],
+					settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+				});
+			});
+		});
+	}
+
+	private static async saveStorageData(data: StorageSchema): Promise<void> {
+		const key = this.getStorageKey();
+		return new Promise((resolve, reject) => {
+			chrome.storage.local.set({ [key]: data }, () => {
+				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+				else resolve();
+			});
+		});
+	}
+
+	static async getSettings(): Promise<SettingsData> {
+		const data = await this.getStorageData();
+		return data.settings;
+	}
+
+	/** Merges the given partial settings into storage and returns the resulting full settings object. */
+	static async updateSettings(partial: Partial<SettingsData>): Promise<SettingsData> {
+		const data = await this.getStorageData();
+		data.settings = { ...data.settings, ...partial };
+		await this.saveStorageData(data);
+		return data.settings;
+	}
+
+	/**
      * Retrieves the entire hierarchical folder tree from local storage.
      * @returns {Promise<FolderData[]>} A promise resolving to the array of folders.
      */
     static async getFolders(): Promise<FolderData[]> {
-        const key = this.getStorageKey();
-        return new Promise((resolve) => {
-            chrome.storage.local.get([key], (result) => {
-                resolve((result[key] as FolderData[]) || []);
-            });
-        });
+		const data = await this.getStorageData();
+		return data.folders;
     }
 
     /**
@@ -67,16 +106,9 @@ export class FolderManager {
      * @returns {Promise<void>} A promise that resolves when the save operation completes.
      */
 	static async saveFolders(folders: FolderData[]): Promise<void> {
-		const key = this.getStorageKey();
-		return new Promise((resolve, reject) => {
-			chrome.storage.local.set({ [key]: folders }, () => {
-				if (chrome.runtime.lastError) {
-					reject(chrome.runtime.lastError);
-				} else {
-					resolve();
-				}
-			});
-		});
+		const data = await this.getStorageData();
+		data.folders = folders;
+		await this.saveStorageData(data);
 	}
 
 	/**

@@ -11,6 +11,9 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
     platformId = 'chatgpt';
     // Target selector for ChatGPT's native popover action menu
     itemSelector = '[role="menu"] > div[role="group"]:last-child';
+	protected override historySelector = '#history';
+	protected override rowSelector = 'li';
+	protected override linkSelector = 'a[href*="/c/"]';
 
 	constructor() {
         super();
@@ -180,5 +183,6 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 			console.warn("[AIChatFolders] Parse client-bootstrap failed.", e);
 			return null;
 		}
-	}	
+	}
+
 }
