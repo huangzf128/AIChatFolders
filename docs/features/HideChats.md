@@ -70,6 +70,7 @@ Adds an eye-icon toggle in the right panel header that hides/shows native sideba
 | Date | Commit | Description |
 |------|--------|--------------|
 | 2026-07-28 | `<commit-hash>` | Initial implementation: hide categorized chats from the native sidebar, across all four platforms (Gemini, ChatGPT, Claude, DeepSeek). Row-lookup logic consolidated into `LeftSidebarAdapter`.  |
+| 2026-07-28 | `<commit-hash>` | Fixed native rows not being restored after deleting a saved chat/folder while hide mode was active. `savedChatIds` was only refreshed inside `refresh()`, so the mutation-observer-triggered full scan (`applyHideToAllRows`) re-hid the row using stale data right after `showRowById` un-hid it. |
 
 ## TODO
 - [ ] None currently.

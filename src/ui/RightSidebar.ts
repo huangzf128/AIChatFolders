@@ -288,7 +288,10 @@ export class RightSidebar {
 					if (parentId && confirm(`Remove "${nodeName}" from the folder?`)) {
 						const updated = await FolderManager.deleteNode(id, parentId);
 						this.render(updated);
-						this.showRowById(id); // restore this one native row
+						if (!this.chatExistsInTree(updated, id)) {
+							this.savedChatIds.delete(id);
+							if (this.settings.hideChat) this.showRowById(id); // truly gone — restore the native row
+						}
 					}
 				} else {
 					if (confirm(`Delete folder "${nodeName}" and all its sub-folders?`)) {
@@ -299,7 +302,12 @@ export class RightSidebar {
 
 						const updated = await FolderManager.deleteNode(id);
 						this.render(updated);
-						chatIdsToRestore.forEach(cid => this.showRowById(cid)); // restore a batch of native rows
+						chatIdsToRestore.forEach(cid => {
+							if (!this.chatExistsInTree(updated, cid)) {
+								this.savedChatIds.delete(cid);
+								if (this.settings.hideChat) this.showRowById(cid);
+							}							
+						}); // restore a batch of native rows
 					}
 				}
 			}
@@ -764,18 +772,12 @@ export class RightSidebar {
 		return `acf_hideAdded_${this.adapter?.platformId}_${sanitized}`;
 	}
 
-	private loadHideSetting(): Promise<boolean> {
-		const key = this.hideSettingKey();
-		return new Promise(resolve => {
-			chrome.storage.local.get([key], (result) => resolve(!!result[key]));
-		});
+	/** Checks whether a given chat id still exists anywhere in the folder tree. */
+	private chatExistsInTree(folders: FolderData[], chatId: string): boolean {
+		for (const f of folders) {
+			if (f.isChat && f.id === chatId) return true;
+			if (f.children?.length && this.chatExistsInTree(f.children, chatId)) return true;
+		}
+		return false;
 	}
-
-	private saveHideSetting(value: boolean): Promise<void> {
-		const key = this.hideSettingKey();
-		return new Promise(resolve => {
-			chrome.storage.local.set({ [key]: value }, () => resolve());
-		});
-	}
-
 }
