@@ -36,18 +36,46 @@ export interface FolderData {
     isChat?: boolean;
 }
 
-export const DEFAULT_SETTINGS: SettingsData = {
-  hideChat: false,
-};
-
-/** User-level preferences stored alongside the folder tree. */
-export interface SettingsData {
+/**
+ * Discriminates which kind of native-UI change is being reported for a
+ * chat. Add new members here (e.g. 'pin', 'archive') as more native
+ * signals get intercepted — no event/method renaming required.
+ */
+export type NativeChangeType = 'delete' | 'rename';
+/**
+ * Preferences tied to the currently logged-in account on this platform.
+ * Requires a resolvable userId, so anything here is only readable/
+ * writable once an account is known (e.g. from the right sidebar).
+ */
+export interface AccountSettings {
   /** Whether chats already saved to a folder should be hidden from the native sidebar. */
   hideChat: boolean;
 }
+export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
+  hideChat: false,
+};
 
-/** Full shape persisted under a single chrome.storage.local key. */
+/**
+ * Preferences tied to the platform/domain as a whole, independent of
+ * which account (if any) is currently logged in. Managed from the
+ * extension's upcoming settings page, which may be opened before login
+ * or without ever resolving a userId — so nothing here may depend on
+ * LeftSidebarAdapter.getResolvedAccountKey().
+ */
+export interface DomainSettings {
+  /**
+   * Whether native platform changes detected via network interception /
+   * DOM signals (currently: delete; planned: rename) should also be
+   * applied to the corresponding entries in local folders.
+   */
+  syncNativeChanges: boolean;
+}
+export const DEFAULT_DOMAIN_SETTINGS: DomainSettings = {
+  syncNativeChanges: true,
+};
+
+/** Full shape persisted under a single per-account chrome.storage.local key. */
 export interface StorageSchema {
   folders: FolderData[];
-  settings: SettingsData;
+  settings: AccountSettings;
 }

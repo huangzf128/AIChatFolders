@@ -47,10 +47,6 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 						this.currentTargetChat = { id: chatId, title };
 					}
 				}
-			} else if (!target.closest('.aichat-cascade-menu, .aichat-folder-menu-item')) {
-
-                // Invalidate the cache if the user clicks completely outside the sidebar or menus
-                this.currentTargetChat = null;
             }
 
 			// Defers execution slightly to allow the SPA to render the context menu DOM elements.

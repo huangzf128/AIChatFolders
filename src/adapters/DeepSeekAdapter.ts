@@ -46,10 +46,6 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
 						this.currentTargetChat = { id: chatId, title };
 					}
 				}
-			} else if (!target.closest('.aichat-cascade-menu, .aichat-folder-menu-item')) {
-				
-                // Clear cache ONLY IF the click is outside the sidebar history, custom menu, AND native menu
-                this.currentTargetChat = null;
             }
 
 			// Defer execution slightly to allow ChatGPT to render the context menu DOM into the document

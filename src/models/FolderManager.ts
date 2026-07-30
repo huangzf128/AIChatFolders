@@ -3,8 +3,8 @@
  * @description Handles data persistence and tree-structure CRUD operations 
  * for folders and chat items using chrome.storage.local.
  */
-import type { FolderData, StorageSchema, SettingsData } from './Folder';
-import { DEFAULT_SETTINGS } from './Folder';
+import type { FolderData, StorageSchema, DomainSettings, AccountSettings } from './Folder';
+import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS } from './Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
 
 const MAX_FOLDER_NAME_LENGTH = 40;
@@ -29,25 +29,35 @@ export class FolderManager {
     }
 
 	/**
-     * Generates a unique, platform-specific storage key based on the initialized adapter.
-     * @private
-     * @returns {string} The composite key used for chrome.storage.
-     * @throws {Error} If called before the manager is properly initialized.
-     */	
-	private static getStorageKey(): string {
-        if (!this.adapter) {
-            throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
-        }
-
+	 * Per-account key: folders + AccountSettings. Requires a resolvable
+	 * userId, since two accounts on the same platform must not share
+	 * folders or sidebar toggles.
+	 * @private
+	 */
+	private static getAccountStorageKey(): string {
+		if (!this.adapter) {
+			throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
+		}
 		const userId = this.adapter.getResolvedAccountKey();
 		if (!userId) {
 			throw new Error('Cannot resolve storage key: User is not logged in.');
 		}
-
-		// Sanitize userId to ensure safe key format
 		const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
 		return `${this.STORAGE_KEY_PREFIX}_${this.adapter.platformId}_${sanitizedUserId}`;
-    }
+	}
+
+	/**
+	 * Domain-only key: DomainSettings. Deliberately never touches
+	 * getResolvedAccountKey(), so it stays readable/writable from the
+	 * settings page even when no account is logged in yet.
+	 * @private
+	 */
+	private static getDomainStorageKey(): string {
+		if (!this.adapter) {
+			throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
+		}
+		return `${this.STORAGE_KEY_PREFIX}_domain_${this.adapter.platformId}`;
+	}
 
 	/**
 	 * Reads the full { folders, settings } object for the current key.
@@ -55,21 +65,21 @@ export class FolderManager {
 	 * FolderData[] array directly (before settings were introduced).
 	 */
 	private static async getStorageData(): Promise<StorageSchema> {
-		const key = this.getStorageKey();
+		const key = this.getAccountStorageKey();
 		return new Promise((resolve) => {
 			chrome.storage.local.get([key], (result) => {
 				const raw = result[key];
 				const data = (raw as Partial<StorageSchema>) || {};
 				resolve({
 					folders: data.folders || [],
-					settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+					settings: { ...DEFAULT_ACCOUNT_SETTINGS, ...(data.settings || {}) },
 				});
 			});
 		});
 	}
 
 	private static async saveStorageData(data: StorageSchema): Promise<void> {
-		const key = this.getStorageKey();
+		const key = this.getAccountStorageKey();
 		return new Promise((resolve, reject) => {
 			chrome.storage.local.set({ [key]: data }, () => {
 				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
@@ -78,17 +88,39 @@ export class FolderManager {
 		});
 	}
 
-	static async getSettings(): Promise<SettingsData> {
+	// ── Account-scoped: sidebar toggles (e.g. hideChat) ──────────────────
+	static async getAccountSettings(): Promise<AccountSettings> {
 		const data = await this.getStorageData();
 		return data.settings;
 	}
 
-	/** Merges the given partial settings into storage and returns the resulting full settings object. */
-	static async updateSettings(partial: Partial<SettingsData>): Promise<SettingsData> {
+	static async updateAccountSettings(partial: Partial<AccountSettings>): Promise<AccountSettings> {
 		const data = await this.getStorageData();
 		data.settings = { ...data.settings, ...partial };
 		await this.saveStorageData(data);
 		return data.settings;
+	}
+
+	// ── Domain-scoped: settings-page toggles (e.g. syncNativeChanges) ────
+	static async getDomainSettings(): Promise<DomainSettings> {
+		const key = this.getDomainStorageKey();
+		return new Promise((resolve) => {
+			chrome.storage.local.get([key], (result) => {
+				resolve({ ...DEFAULT_DOMAIN_SETTINGS, ...(result[key] || {}) });
+			});
+		});
+	}
+
+	static async updateDomainSettings(partial: Partial<DomainSettings>): Promise<DomainSettings> {
+		const current = await this.getDomainSettings();
+		const merged = { ...current, ...partial };
+		const key = this.getDomainStorageKey();
+		return new Promise((resolve, reject) => {
+			chrome.storage.local.set({ [key]: merged }, () => {
+				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+				else resolve(merged);
+			});
+		});
 	}
 
 	/**

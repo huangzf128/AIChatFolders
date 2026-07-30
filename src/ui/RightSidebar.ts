@@ -7,8 +7,8 @@ import { FolderManager } from '../models/FolderManager';
 import { FolderEditor } from './FolderEditor';
 import { ICONS } from './icons';
 import { GlobalStyles } from '../ui/styles/index';
-import type { FolderData, SettingsData } from '../models/Folder';
-import { DEFAULT_SETTINGS } from '../models/Folder';
+import type { FolderData, AccountSettings, DomainSettings, NativeChangeType } from '../models/Folder';
+import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS } from '../models/Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
 
 // Class name applied to native sidebar rows that should be hidden
@@ -22,7 +22,8 @@ export class RightSidebar {
     private panel: HTMLElement | null = null;	// The root DOM reference containing the rendered folder framework drawer
     private dock: HTMLElement | null = null;	// The floating trigger handle injected globally into the document viewport edge
 	private adapter: LeftSidebarAdapter | null; // Reference to the active site-specific adapter layer
-	private settings: SettingsData = DEFAULT_SETTINGS;
+	private AccountSettings: AccountSettings = DEFAULT_ACCOUNT_SETTINGS;
+	private domainSettings: DomainSettings = DEFAULT_DOMAIN_SETTINGS;
 
 	// Chat ids currently saved somewhere in the folder tree, used by the full-scan toggle
 	private savedChatIds = new Set<string>();
@@ -54,7 +55,8 @@ export class RightSidebar {
         this.createPanel();
 		this.bindDragEvents();
 
-		this.settings = await FolderManager.getSettings();
+		this.AccountSettings = await FolderManager.getAccountSettings();
+		this.domainSettings  = await FolderManager.getDomainSettings();
 		this.updateHideToggleUI();
 
         await this.refresh();
@@ -100,7 +102,7 @@ export class RightSidebar {
 	private startObservingNativeSidebar(): void {
 		if (this.mutationObserver) return;
 		this.mutationObserver = new MutationObserver(() => {
-			if (!this.settings.hideChat) return; // nothing to do while the feature is off
+			if (!this.AccountSettings.hideChat) return; // nothing to do while the feature is off
 			this.scheduleApplyHideToAllRows();
 		});
 		this.mutationObserver.observe(document.body, { childList: true, subtree: true });
@@ -290,7 +292,7 @@ export class RightSidebar {
 						this.render(updated);
 						if (!this.chatExistsInTree(updated, id)) {
 							this.savedChatIds.delete(id);
-							if (this.settings.hideChat) this.showRowById(id); // truly gone — restore the native row
+							if (this.AccountSettings.hideChat) this.showRowById(id); // truly gone — restore the native row
 						}
 					}
 				} else {
@@ -305,7 +307,7 @@ export class RightSidebar {
 						chatIdsToRestore.forEach(cid => {
 							if (!this.chatExistsInTree(updated, cid)) {
 								this.savedChatIds.delete(cid);
-								if (this.settings.hideChat) this.showRowById(cid);
+								if (this.AccountSettings.hideChat) this.showRowById(cid);
 							}							
 						}); // restore a batch of native rows
 					}
@@ -313,8 +315,8 @@ export class RightSidebar {
 			}
 
 			if (target.closest('#aichat-toggle-hide-btn')) {
-				this.settings.hideChat = !this.settings.hideChat;
-				await FolderManager.updateSettings(this.settings);
+				this.AccountSettings.hideChat = !this.AccountSettings.hideChat;
+				await FolderManager.updateAccountSettings(this.AccountSettings);
 				this.applyHideToAllRows(); // Full scan: loop every native row, decide hide/show
 				this.updateHideToggleUI();
 				return;
@@ -336,6 +338,31 @@ export class RightSidebar {
 				await this.refresh();
 				this.flashNode(chatInfo.id); 
 				this.hideRowById(chatInfo.id); // NEW: hide this one native row (only if toggle is on)
+			});
+
+			window.addEventListener('aichat:native-change', async (e: Event) => {
+				// Feature toggle: defaults to on, but users can disable it from settings
+				// if they're ever worried about an incorrect automatic sync.
+				if (!this.domainSettings.syncNativeChanges) return;
+				const detail = (e as CustomEvent<{ chatId: string; type: NativeChangeType; newTitle?: string }>).detail;
+				if (!detail?.chatId) return;
+
+				switch (detail.type) {
+					case 'delete': {
+						const updated = await FolderManager.deleteNode(detail.chatId);
+						this.render(updated);
+						if (!this.chatExistsInTree(updated, detail.chatId)) {
+							this.savedChatIds.delete(detail.chatId);
+						}
+						break;
+					}
+					case 'rename': {
+						if (!detail.newTitle) break;
+						// const updated = await FolderManager.renameNode(detail.chatId, detail.newTitle);
+						// this.render(updated);
+						break;
+					}
+				}
 			});
 
 			// Mark the listener as attached
@@ -724,7 +751,7 @@ export class RightSidebar {
 
 	/** Hides a single native sidebar row by chat id, only when the toggle is currently on. */
 	private hideRowById(chatId: string): void {
-		if (!this.settings.hideChat) return;
+		if (!this.AccountSettings.hideChat) return;
 		const row = this.adapter?.getChatRowById(chatId);
 		row?.classList.add(NATIVE_HIDDEN_CLASS);
 	}
@@ -739,7 +766,7 @@ export class RightSidebar {
 	private applyHideToAllRows(): void {
 		if (!this.adapter) return;
 		this.adapter.getChatRows().forEach(({ chatId, row }) => {
-			const shouldHide = this.settings.hideChat && this.savedChatIds.has(chatId);
+			const shouldHide = this.AccountSettings.hideChat && this.savedChatIds.has(chatId);
 			row.classList.toggle(NATIVE_HIDDEN_CLASS, shouldHide);
 		});
 	}
@@ -759,9 +786,9 @@ export class RightSidebar {
 	private updateHideToggleUI(): void {
 		const btn = this.panel?.querySelector('#aichat-toggle-hide-btn');
 		if (!btn) return;
-		btn.classList.toggle('is-active', this.settings.hideChat);
-		btn.innerHTML = this.settings.hideChat ? ICONS.EYE_OFF : ICONS.EYE;
-		btn.setAttribute('title', this.settings.hideChat
+		btn.classList.toggle('is-active', this.AccountSettings.hideChat);
+		btn.innerHTML = this.AccountSettings.hideChat ? ICONS.EYE_OFF : ICONS.EYE;
+		btn.setAttribute('title', this.AccountSettings.hideChat
 			? 'Show all chats in the native sidebar'
 			: 'Hide chats already saved to a folder');
 	}

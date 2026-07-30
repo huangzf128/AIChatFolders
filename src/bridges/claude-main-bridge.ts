@@ -3,6 +3,7 @@
 // in the isolated world cannot see React's internal expando properties
 // (e.g. `__reactFiber$...`) attached to DOM nodes by the page's own script.
 
+// ─── Retrieve Account ─────────────────────────
 /**
  * Retrieves the internal React Fiber instance attached to a given DOM node.
  */
@@ -121,3 +122,66 @@ new MutationObserver(() => {
 		pushAccountUuid(uuid);
 	}
 }).observe(document.documentElement, { childList: true, subtree: true });
+
+
+// ─── Native Conversation Deletion Interception ─────────────────────────
+// Claude gives no reliable DOM signal for delete (row just disappears)
+// or rename, so we intercept both at the network layer instead — here
+// in the MAIN world, since this is where Claude's own React app actually
+// issues the request.
+const CHAT_CONVERSATION_ID_PATTERN =
+  /\/chat_conversations\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:[/?]|$)/;
+
+/** Broadcasts a native chat change (delete, rename, ...) to the isolated world (ClaudeAdapter). */
+function notifyConversationChanged(
+  chatId: string,
+  type: 'delete' | 'rename',
+  extra?: { newTitle?: string }
+): void {
+  window.dispatchEvent(new CustomEvent('aichatfolders:conversation-changed', {
+    detail: { chatId, type, ...extra }
+  }));
+}
+
+/** Resolves the request URL regardless of whether `fetch` was called with a string or a `Request`. */
+function resolveRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  if (input instanceof Request) return input.url;
+  return input.toString();
+}
+
+const originalFetch = window.fetch;
+window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
+  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  const url = resolveRequestUrl(input);
+  const response = await originalFetch.call(this, input, init);
+  // Only broadcast after a genuinely successful response, so a failed
+  // delete (network error / 403 / etc.) never wipes local folder records.
+if (method === 'DELETE' && response.ok) {
+  const match = url.match(CHAT_CONVERSATION_ID_PATTERN);
+  if (match) notifyConversationChanged(match[1]!, 'delete');
+}
+  return response;
+};
+
+// Belt-and-braces: also patch XMLHttpRequest in case a deletion path
+// (present or future) ever goes through XHR instead of fetch.
+const originalXhrOpen = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...rest: any[]) {
+  (this as any).__aichatfolders_method = method?.toUpperCase();
+  (this as any).__aichatfolders_url = typeof url === 'string' ? url : url.toString();
+  return originalXhrOpen.apply(this, [method, url, ...rest] as any);
+};
+
+const originalXhrSend = XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.send = function (...args: any[]) {
+  this.addEventListener('loadend', () => {
+    const method = (this as any).__aichatfolders_method;
+    const url = (this as any).__aichatfolders_url as string | undefined;
+    if (method === 'DELETE' && this.status >= 200 && this.status < 300 && url) {
+      const match = url.match(CHAT_CONVERSATION_ID_PATTERN);
+	  if (match != null) notifyConversationChanged(match[1]!, 'delete')
+    }
+  });
+  return originalXhrSend.apply(this, args as any);
+};

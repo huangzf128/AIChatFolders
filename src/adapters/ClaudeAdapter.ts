@@ -36,6 +36,7 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 	 */
 	public init(): void {
 		this.initClickListener();
+		this.initNativeChatSync();
 	}
 
     initClickListener(): void {
@@ -59,10 +60,6 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 						this.currentTargetChat = { id: chatId, title };
 					}
 				}
-			} else if (!target.closest('.aichat-cascade-menu, .aichat-folder-menu-item, [role="alertdialog"]')) {
-				
-                // Clear cache ONLY IF the click is outside the sidebar history, custom menu, AND native menu
-                this.currentTargetChat = null;
 			}
 
 			// Defer execution slightly to allow ChatGPT to render the context menu DOM into the document

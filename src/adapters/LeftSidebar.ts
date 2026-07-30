@@ -4,6 +4,8 @@
  * Provides shared capabilities including DOM mutation monitoring and multi-level cascade menu management.
  */
 
+import type { NativeChangeType } from '../models/Folder';
+
 /**
  * Abstract adapter that bridges the application core with specific AI platform UIs (e.g., Gemini, ChatGPT).
  * Subclasses must implement site-specific selectors, ingestion hooks, and routing handlers.
@@ -87,7 +89,29 @@ export abstract class LeftSidebarAdapter {
      * @protected
      */
     protected abstract initClickListener(): void;
-		
+	
+	/**
+	 * Listens for a native-chat-change report from a platform's MAIN-world
+	 * bridge script (e.g. claude-main-bridge.ts) and re-broadcasts it as the
+	 * shared, platform-agnostic `aichat:native-change` event that RightSidebar
+	 * already knows how to handle.
+	 *
+	 * This lives here (not per-adapter) because the logic is identical for
+	 * every platform — it only depends on the two agreed-upon event names and
+	 * a `{ chatId, type, ...extra }` payload shape, not on any platform-
+	 * specific DOM/selector details. Subclasses whose platform has a
+	 * MAIN-world bridge that dispatches `aichatfolders:conversation-changed`
+	 * just need to call this once from their own `init()`.
+	 * @protected
+	 */
+	protected initNativeChatSync(): void {
+		window.addEventListener('aichatfolders:conversation-changed', (e: Event) => {
+			const detail = (e as CustomEvent<{ chatId: string; type: NativeChangeType; newTitle?: string }>).detail;
+			if (!detail?.chatId || !detail.type) return;
+			window.dispatchEvent(new CustomEvent('aichat:native-change', { detail }));
+		});
+	}
+
 	/**
      * Creates, positions, and manages the operational lifecycle of a multi-level cascading folder menu.
      * @protected
@@ -126,6 +150,10 @@ export abstract class LeftSidebarAdapter {
 				}));
 				this.removeCascadeMenus();
 				this.closeNativeMenu();
+				// This interaction cycle is fully consumed at this point (info has
+				// already been read and dispatched), so drop the cache here rather
+				// than relying on some other click handler to invalidate it later.
+				this.currentTargetChat = null;
 			});
 
 			if (hasChildren) {
