@@ -487,6 +487,9 @@ export class RightSidebar {
 		let lastPotentialNode: HTMLElement | null = null;
 		let currentTargetNode: HTMLElement | null = null;
 		let dragEnterTimer: number | null = null;
+		// tracks whether the native 'drop' event already committed the move,
+		// so the 'dragend' fallback below doesn't run twice.
+		let dropHandled = false;
 
 		// Cleans up all temporary CSS classes used for highlighting drop zones
 		const clearStyles = () => {
@@ -510,6 +513,50 @@ export class RightSidebar {
             currentTargetNode = null;
 		};
 
+		// This is a verbatim copy of the original inline 'drop' handler body,
+		// extracted only so both the normal 'drop' path and the 'dragend'
+		// fallback (for hosts like DeepSeek that swallow 'drop') can call the
+		// exact same logic. Nothing about the logic itself has changed.
+		const commitMove = async (targetNode: HTMLElement | null, movingId: string | null) => {
+			if (!targetNode || !movingId) {
+				finalizeDrag();
+				return;
+			}
+
+			const card = targetNode.querySelector('.aichat-folder-card') as HTMLElement;
+			const targetId = card?.dataset.id;
+			const isInside = card?.classList.contains('drop-inside');
+			const isAfter = targetNode.dataset.dropPos === 'after';
+
+			const draggedNode = document.querySelector('.dragging')?.closest('.aichat-folder-node');
+			const isDraggingChat = draggedNode?.classList.contains('aichat-chat-leaf');
+
+			// Determine whether the target node is still inside aichat-folder-list
+			// (i.e., has not been dragged out of the container).
+			const isStillInsideContainer = targetNode.closest('#aichat-folder-list') !== null;
+
+			// Tear down visual UI configurations before launching storage mutation routines
+			finalizeDrag();
+
+			if (targetId && movingId !== targetId) {
+				let position: 'before' | 'inside' | 'after' = 'before';
+				if (isInside) position = 'inside';
+				else if (isAfter) position = 'after';
+
+				// The chat record must not be dragged outside of aichat-folder-list
+				// (i.e. it must not lose its parent folder).
+				if (isDraggingChat && !isStillInsideContainer) {
+					return;
+				}
+
+				await FolderManager.reorder(movingId, targetId, position);
+
+				window.requestAnimationFrame(() => {
+					this.refresh();
+				});
+			}
+		};
+
 		// Start dragging the card
 		this.panel?.addEventListener('dragstart', (e) => {
 			const target = e.target as HTMLElement;
@@ -517,6 +564,7 @@ export class RightSidebar {
 			if (!card) return;
 
 			draggedId = card.dataset.id || null;
+			dropHandled = false;
 			card.classList.add('dragging');
 			
 			if (e.dataTransfer) {
@@ -605,53 +653,24 @@ export class RightSidebar {
 			}
 		});
 
-
 		this.panel?.addEventListener('drop', async (e) => {
 			e.preventDefault();
-			
-			const targetNode = currentTargetNode;
-			const movingId = draggedId;
-			
-			if (!targetNode || !movingId) {
-				finalizeDrag();
-				return;
-			}
-
-			// Tear down visual UI configurations before launching storage mutation routines
-			const card = targetNode.querySelector('.aichat-folder-card') as HTMLElement;
-			const targetId = card?.dataset.id;
-			const isInside = card?.classList.contains('drop-inside');
-			const isAfter = targetNode.dataset.dropPos === 'after';
-
-			const draggedNode = document.querySelector('.dragging')?.closest('.aichat-folder-node');
-			const isDraggingChat = draggedNode?.classList.contains('aichat-chat-leaf');
-
-			// ✅ Determine whether the target node is still inside aichat-folder-list (i.e., has not been dragged out of the container).
-			const isStillInsideContainer = targetNode.closest('#aichat-folder-list') !== null;
-
-			// Tear down visual UI configurations before launching storage mutation routines
-			finalizeDrag(); 
-
-			if (targetId && movingId !== targetId) {
-				let position: 'before' | 'inside' | 'after' = 'before';
-				if (isInside) position = 'inside';
-				else if (isAfter) position = 'after';
-
-				// ✅ The chat record must not be dragged outside of aichat-folder-list (i.e., it must not lose its parent folder).
-				if (isDraggingChat && !isStillInsideContainer) {
-					return;
-				}
-
-				await FolderManager.reorder(movingId, targetId, position);
-				
-				window.requestAnimationFrame(() => {
-					this.refresh();
-				});
-			}
+			dropHandled = true;
+			await commitMove(currentTargetNode, draggedId);
 		});
 
 		this.panel?.addEventListener('dragend', () => {
-			finalizeDrag();
+			// Fallback: on hosts like DeepSeek, the native 'drop' event never
+			// reaches this.panel (confirmed via console logging), so 'drop' above
+			// never runs. 'dragend' always fires regardless, so run the identical
+			// commitMove logic here using the last known drag state.
+			// No 'else' branch needed here — commitMove() already calls
+			// finalizeDrag() internally on every path (both the early-return guard
+			// and the normal success path), so when 'drop' already ran there's
+			// nothing left to clean up.
+			if (!dropHandled) {
+				void commitMove(currentTargetNode, draggedId);
+			}
 		});
 	}
 
