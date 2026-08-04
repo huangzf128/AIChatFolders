@@ -96,6 +96,19 @@ export abstract class LeftSidebarAdapter {
 	protected initClickListener(): void {
 		document.body.addEventListener('click', (e) => {
 			const target = e.target as HTMLElement;
+
+			// Clicks inside our own injected UI (the "Add to Folder" trigger, or
+			// any level of the cascading folder-picker menu) must NOT touch
+			// currentTargetChat. This listener runs in the capture phase, which
+			// always fires before the folder item's own click handler at the
+			// target phase — without this guard, clicking a folder to save wipes
+			// the cache right before getChatInfo() reads it, forcing every
+			// adapter to fall back to whatever "currently active chat" heuristic
+			// it has (wrong chat, wrong title).
+			if (target.closest('.aichat-folder-menu-item, .aichat-cascade-menu')) {
+			return;
+			}
+
 			let chatId = '';
 			// get chat info
 			const historyContainer = target.closest(this.historySelector);	// chat container

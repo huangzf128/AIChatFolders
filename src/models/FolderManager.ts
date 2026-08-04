@@ -50,13 +50,20 @@ export class FolderManager {
 	 * Domain-only key: DomainSettings. Deliberately never touches
 	 * getResolvedAccountKey(), so it stays readable/writable from the
 	 * settings page even when no account is logged in yet.
+	 *
+	 * Accepts an optional explicit platformId so callers without a full
+	 * adapter instance (e.g. the options page) can still resolve the key.
 	 * @private
 	 */
-	private static getDomainStorageKey(): string {
-		if (!this.adapter) {
-			throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
+	private static getDomainStorageKey(platformId?: string): string {
+		const id = platformId ?? this.adapter?.platformId;
+		if (!id) {
+			throw new Error('FolderManager: platformId is required to resolve the domain storage key.');
 		}
-		return `${this.STORAGE_KEY_PREFIX}_domain_${this.adapter.platformId}`;
+		// Renamed from `acf_domain_${id}` to `acf_${id}` — a domain key never
+		// collides with an account key, since account keys always carry a
+		// trailing userId segment (`acf_${platformId}_${userId}`).
+		return `${this.STORAGE_KEY_PREFIX}_${id}`;
 	}
 
 	/**
@@ -102,23 +109,23 @@ export class FolderManager {
 	}
 
 	// ── Domain-scoped: settings-page toggles (e.g. syncNativeChanges) ────
-	static async getDomainSettings(): Promise<DomainSettings> {
-		const key = this.getDomainStorageKey();
+	static async getDomainSettings(platformId?: string): Promise<DomainSettings> {
+		const key = this.getDomainStorageKey(platformId);
 		return new Promise((resolve) => {
 			chrome.storage.local.get([key], (result) => {
-				resolve({ ...DEFAULT_DOMAIN_SETTINGS, ...(result[key] || {}) });
+			resolve({ ...DEFAULT_DOMAIN_SETTINGS, ...(result[key] || {}) });
 			});
 		});
 	}
 
-	static async updateDomainSettings(partial: Partial<DomainSettings>): Promise<DomainSettings> {
-		const current = await this.getDomainSettings();
+	static async updateDomainSettings(partial: Partial<DomainSettings>, platformId?: string): Promise<DomainSettings> {
+		const current = await this.getDomainSettings(platformId);
 		const merged = { ...current, ...partial };
-		const key = this.getDomainStorageKey();
+		const key = this.getDomainStorageKey(platformId);
 		return new Promise((resolve, reject) => {
 			chrome.storage.local.set({ [key]: merged }, () => {
-				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-				else resolve(merged);
+			if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+			else resolve(merged);
 			});
 		});
 	}
