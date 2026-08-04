@@ -39,52 +39,22 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 		this.initNativeChatSync();
 	}
 
-    initClickListener(): void {
-        document.body.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            
-			// get chat info
-			const historyContainer = target.closest('ul.flex.flex-col');	// chat container
-            if (historyContainer) {
-				// Search upwards to find the menu item / container, then locate the associated chat link containing /c/
-				const chatRow = target.closest('li');
-				const linkEl = chatRow?.querySelector('a[href*="/chat/"]') as HTMLAnchorElement;
-				
-				if (linkEl) {
-					const href = linkEl.getAttribute('href') || '';
-					const pathParts = href.split('/');
-					const chatId = pathParts[pathParts.length - 1];
-					const title = this.getCleanTitle(linkEl);
-
-					if (chatId) {
-						this.currentTargetChat = { id: chatId, title };
-					}
-				}
-			}
-
-			// Defer execution slightly to allow ChatGPT to render the context menu DOM into the document
-            setTimeout(() => {
-                this.createMenuItem();
-            }, 0);
-
-        }, true); // Use capture phase to ensure the ID is grabbed before the menu opens
-    }
-
 	/**
-	 * Extracts the first valid text content inside the element.
-	 */
-	private getCleanTitle(linkEl: HTMLElement): string {
+	* Claude's sidebar title lives in a nested span, not the anchor's direct text.
+	* @protected
+	* @override
+	*/
+	protected override getRowTitle(linkEl: HTMLElement | null): string {
 		// Prefer targeting the main title container (works for most AI sidebars)
-		const innerSpan = linkEl.querySelector('span.block.truncate');
+		const innerSpan = linkEl?.querySelector('span.block.truncate');
 		if (innerSpan && innerSpan.textContent) {
 			return innerSpan.textContent.trim();
 		}
-
 		// Fallback strategy
-		return linkEl.textContent?.trim() || document.title;
+		return linkEl?.textContent?.trim() || document.title;
 	}
 
-	private createMenuItem(): void {
+	protected createMenuItem(): void {
         const menuContainer = document.querySelector(this.itemSelector);
         if (!menuContainer || menuContainer.querySelector('.aichat-folder-menu-item')) return;
 

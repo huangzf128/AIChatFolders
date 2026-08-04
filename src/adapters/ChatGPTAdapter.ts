@@ -27,38 +27,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 		this.initNativeChatSync();
 	}
 
-    initClickListener(): void {
-        document.body.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            
-			// get chat info
-			const historyContainer = target.closest('#history');	// chat container
-            if (historyContainer) {
-				// Traverse up the DOM tree to locate the list item, then find the anchor tag containing the chat ID
-				const chatRow = target.closest('li');
-				const linkEl = chatRow?.querySelector('a[href*="/c/"]') as HTMLAnchorElement;
-				
-				if (linkEl) {
-					const href = linkEl.getAttribute('href') || '';
-					const pathParts = href.split('/');
-					const chatId = pathParts[pathParts.length - 1];
-					const title = linkEl.textContent?.trim() || document.title;
-
-					if (chatId) {
-						this.currentTargetChat = { id: chatId, title };
-					}
-				}
-            }
-
-			// Defers execution slightly to allow the SPA to render the context menu DOM elements.
-            setTimeout(() => {
-                this.createMenuItem();
-            }, 50);
-
-        }, true); // Use capture phase to ensure data is grabbed before React swallows the event
-    }
-
-    private createMenuItem(): void {
+    protected createMenuItem(): void {
 
 		const menuContainer = document.querySelector(this.itemSelector);
 			

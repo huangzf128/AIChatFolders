@@ -26,38 +26,7 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
 		this.initNativeChatSync();
 	}
 
-    initClickListener(): void {
-        document.body.addEventListener('click', (e) => {
-            const target = e.target as HTMLElement;
-            
-			// get chat info
-			const historyContainer = target.closest('div.ds-scroll-area.ds-scroll-area--show-on-focus-within');	// chat container
-            if (historyContainer) {
-				// Search upwards to find the menu item / container, then locate the associated chat link containing /c/
-				const chatRow = target;
-				const linkEl = chatRow?.closest('a[href*="/a/chat/s/"]') as HTMLAnchorElement;
-				
-				if (linkEl) {
-					const href = linkEl.getAttribute('href') || '';
-					const pathParts = href.split('/');
-					const chatId = pathParts[pathParts.length - 1];
-					const title = linkEl.textContent?.trim() || document.title;
-
-					if (chatId) {
-						this.currentTargetChat = { id: chatId, title };
-					}
-				}
-            }
-
-			// Defer execution slightly to allow ChatGPT to render the context menu DOM into the document
-            setTimeout(() => {
-                this.createMenuItem();
-            }, 50);
-
-        }, true); // Use capture phase to ensure the ID is grabbed before the menu opens
-    }
-
-	private createMenuItem(): void {
+	protected createMenuItem(): void {
         const menuContainer = document.querySelector(this.itemSelector);
         if (!menuContainer || menuContainer.querySelector('.aichat-folder-menu-item')) return;
 

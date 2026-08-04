@@ -83,13 +83,66 @@ export abstract class LeftSidebarAdapter {
 	}
 
 	/**
-     * Initializes global click listeners to capture chat metadata (ID and Title) 
-     * exactly when the user clicks the native options button.
-     * This contract must be implemented by all child adapters.
-     * @protected
-     */
-    protected abstract initClickListener(): void;
-	
+	* Initializes global click listeners to capture chat metadata (ID and Title)
+	* exactly when the user clicks the native options button.
+	*
+	* Shared across all platforms — only the three selectors above differ.
+	* If no chatId can be resolved (click landed outside a chat row, or on
+	* some unrelated native menu), the stale cache is cleared and menu
+	* injection is skipped entirely, so "Add to Folder" never leaks into
+	* menus that have nothing to do with a chat.
+	* @protected
+	*/
+	protected initClickListener(): void {
+		document.body.addEventListener('click', (e) => {
+			const target = e.target as HTMLElement;
+			let chatId = '';
+			// get chat info
+			const historyContainer = target.closest(this.historySelector);	// chat container
+			if (historyContainer) {
+				const chatRow = target.closest(this.rowSelector) as HTMLElement | null;
+				if (chatRow) {
+					chatId = this.extractChatIdFromRow(chatRow);
+					if (chatId) {
+						const linkEl = (chatRow.matches(this.linkSelector) ? chatRow : chatRow.querySelector(this.linkSelector)) as HTMLElement | null;
+						const title = this.getRowTitle(linkEl);
+						this.currentTargetChat = { id: chatId, title };
+					}
+				}
+			}
+			// No chat id resolved: this click didn't open a chat-row menu, so clear any
+			// stale target and skip injecting the folder menu item into unrelated menus.
+			if (!chatId) {
+				this.currentTargetChat = null;
+				return;
+			}
+			// Defer execution slightly to allow the SPA to render the context menu DOM into the document
+			setTimeout(() => {
+				this.createMenuItem();
+			}, 50);
+			
+		}, true); // Use capture phase to ensure the ID is grabbed before the menu opens
+	}
+
+	/**
+	* Extracts the display title for a chat row's link element.
+	* Default: plain text content of the link, falling back to the document title.
+	* Override for platforms whose title lives in a nested element (e.g. Claude).
+	* @protected
+	* @virtual
+	*/
+	protected getRowTitle(linkEl: HTMLElement | null): string {
+		return linkEl?.textContent?.trim() || document.title;
+	}
+
+	/**
+	* Locates the native menu container and injects the "Add to Folder" button.
+	* Platform-specific because each site's menu markup/classes differ.
+	* @abstract
+	* @protected
+	*/
+	protected abstract createMenuItem(): void;
+
 	/**
 	 * Listens for a native-chat-change report from a platform's MAIN-world
 	 * bridge script (e.g. claude-main-bridge.ts) and re-broadcasts it as the
@@ -302,7 +355,7 @@ export abstract class LeftSidebarAdapter {
 	}
 
 	/** Extracts the chat id from a row's anchor link (which may be the row itself). */
-	private extractChatIdFromRow(row: HTMLElement): string {
+	protected extractChatIdFromRow(row: HTMLElement): string {
 		const link = (row.matches(this.linkSelector) ? row : row.querySelector(this.linkSelector)) as HTMLAnchorElement | null;
 
 		const rawId = link?.getAttribute('href')?.split('/').pop() || '';
