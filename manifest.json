@@ -28,6 +28,12 @@
 		"js": ["dist/bridges/claude-main-bridge.js"],
 		"world": "MAIN",
 		"run_at": "document_start"
+	},
+	{
+		"matches": ["https://gemini.google.com/*"],
+		"js": ["dist/bridges/gemini-main-bridge.js"],
+		"world": "MAIN",
+		"run_at": "document_start"
 	}	
 	]
 }

@@ -22,6 +22,7 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 	 */
 	public init(): void {
 		this.initClickListener();
+		this.initNativeChatSync();
 	}
 
     initClickListener(): void {
@@ -38,7 +39,7 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 				if (linkEl) {
 					const href = linkEl.getAttribute('href') || '';
 					const pathParts = href.split('/');
-					const chatId = pathParts[pathParts.length - 1];
+					const chatId = this.cleanChatId(pathParts[pathParts.length - 1] || '');
 					const title = linkEl.textContent?.trim() || document.title;
 
 					if (chatId) {
@@ -114,8 +115,8 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 		const activeLinkEl = document.querySelector('gem-nav-list-item.always-show-hovered-trailing-content');
 		
 		const anchorEl = activeLinkEl?.querySelector('a');
-		const chatId = anchorEl?.getAttribute('href')?.split('/').pop() || 
-                   window.location.pathname.split('/').pop() || '';
+		const chatId = this.cleanChatId(anchorEl?.getAttribute('href')?.split('/').pop() || 
+                   window.location.pathname.split('/').pop() || '');
 
 		const title = activeLinkEl?.querySelector('.title-text')?.textContent?.trim() || 
                   document.title;

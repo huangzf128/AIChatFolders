@@ -69,27 +69,24 @@ longer exists (or no longer has that title) on the native side.
 - `src/models/FolderManager.ts` — `getDomainSettings()` /
   `updateDomainSettings()`, domain-scoped storage key.
 - `src/adapters/LeftSidebar.ts` — `initNativeChatSync()` (shared bridge
-  listener).
+  listener); also `cleanChatId()`, a shared utility stripping query
 - Platform-specific MAIN-world bridge script — network interception and
   `notifyConversationChanged()` dispatch.
 - `src/components/RightSidebar.ts` — `aichat:native-change` listener and
   the `syncNativeChanges` gate.
 
 ## Known Limitations
-- Only `type: 'delete'` is currently produced by any bridge. `'rename'`
-  is defined in `NativeChangeType` and already handled structurally by
-  the event contract and the `RightSidebar` listener's `switch`, but no
-  bridge script dispatches it yet, so renaming a chat natively does not
-  currently update its title inside a folder.
-- Deletion detection relies on matching a specific network request
-  pattern; if a platform changes its API shape, detection silently stops
-  working until the pattern is updated (it fails closed — no false
-  deletions, just missed ones).
-
+- Deletion detection is per-platform and hand-coded (Claude: DELETE
+  request; Gemini: `batchexecute?rpcids=qWymEb`). Adding a new platform
+  requires manually finding its equivalent network signal — there is no
+  generic detection strategy across platforms.
+  
 ## Revision History
 | Date | Commit | Description |
 |------|--------|--------------|
 | 2026-07-30 | `<commit-hash>` | Initial implementation: native deletion sync for Claude only, built on the generalized `aichatfolders:conversation-changed` / `aichat:native-change` event contract (`NativeChangeType`) so other change types and platforms can be added without renaming events or methods. `syncNativeChanges` introduced as a `DomainSettings` toggle. |
+| 2026-08-04 | `<commit-hash>` | Extended to Gemini via `batchexecute?rpcids=qWymEb` XHR interception (`gemini-main-bridge.ts`). Fixed a silent id-mismatch bug where tracking-param query strings on Gemini sidebar links leaked into stored chat ids; introduced shared `LeftSidebarAdapter.cleanChatId()` to prevent recurrence on other platforms. |
+
 
 ## TODO
 - [ ] None currently.

@@ -304,7 +304,20 @@ export abstract class LeftSidebarAdapter {
 	/** Extracts the chat id from a row's anchor link (which may be the row itself). */
 	private extractChatIdFromRow(row: HTMLElement): string {
 		const link = (row.matches(this.linkSelector) ? row : row.querySelector(this.linkSelector)) as HTMLAnchorElement | null;
-		return link?.getAttribute('href')?.split('/').pop() || '';
+
+		const rawId = link?.getAttribute('href')?.split('/').pop() || '';
+		// Strip query string / fragment — some platforms (e.g. Gemini) append
+		// tracking params like "?utm_source=..." onto sidebar links.
+		return this.cleanChatId(rawId);
 	}
 
+	/**
+	* Strips query string / fragment from a raw href-derived id segment.
+	* Gemini's sidebar links sometimes carry tracking params, e.g.
+	* "6bbc94fff9c8175b?utm_source=app_launcher&utm_medium=owned&..." — only
+	* the part before "?" (or "#") is the actual conversation id.
+	*/
+	protected cleanChatId(rawId: string): string {
+		return rawId.split('?')[0]!.split('#')[0]!;
+	}
 }
