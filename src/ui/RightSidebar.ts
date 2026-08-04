@@ -287,7 +287,7 @@ export class RightSidebar {
 					const parentNode = node.parentElement?.closest('.aichat-folder-node');
 					const cardEl = parentNode?.querySelector('.aichat-folder-card');
 					const parentId = cardEl instanceof HTMLElement ? cardEl.dataset.id : undefined;
-					if (parentId && confirm(`Remove "${nodeName}" from the folder?`)) {
+					if (parentId && await this.showConfirmDialog(`Remove "${nodeName}" from the folder?\n(This will not delete your actual chat history)`)) {
 						const updated = await FolderManager.deleteNode(id, parentId);
 						this.render(updated);
 						if (!this.chatExistsInTree(updated, id)) {
@@ -296,7 +296,7 @@ export class RightSidebar {
 						}
 					}
 				} else {
-					if (confirm(`Delete folder "${nodeName}" and all its sub-folders?`)) {
+					if (await this.showConfirmDialog(`Delete folder "${nodeName}" and all its sub-folders?\n(Chats inside will not be deleted from your actual chat history.)`)) {
 						// Collect every chat id under this folder BEFORE deleting, so we know what to restore
 						const folders = await FolderManager.getFolders();
 						const target = this.findFolderById(folders, id);
@@ -825,5 +825,66 @@ export class RightSidebar {
 			if (f.children?.length && this.chatExistsInTree(f.children, chatId)) return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Renders a custom in-DOM confirmation modal and resolves once the user responds.
+	 * `window.confirm()` is unreliable inside some embedded browsing contexts (e.g. Vivaldi's
+	 * side panel), where the host silently suppresses native blocking dialogs instead of
+	 * showing them — this replaces it entirely so the confirmation always renders.
+	 * @private
+	 * @param {string} message - The prompt text to display inside the modal body.
+	 * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled/dismissed.
+	 */
+	private showConfirmDialog(message: string): Promise<boolean> {
+		return new Promise((resolve) => {
+			const overlay = document.createElement('div');
+			overlay.className = 'aichat-confirm-overlay';
+
+			const card = document.createElement('div');
+			card.className = 'aichat-confirm-card';
+
+			if (this.adapter) {
+            	card.classList.add(`aichat-confirm-${this.adapter.platformId.toLowerCase()}`);
+        	}
+
+			const titleEl = document.createElement('div');
+			titleEl.className = 'aichat-confirm-title';
+			titleEl.textContent = 'AI Chat Folders';
+			card.appendChild(titleEl);
+
+			const messageEl = document.createElement('div');
+			messageEl.className = 'aichat-confirm-message';
+			// Use textContent (not innerHTML) so folder/chat names containing
+			// HTML-special characters can never be interpreted as markup.
+			messageEl.textContent = message;
+			card.appendChild(messageEl);
+
+			const btnGroup = document.createElement('div');
+			btnGroup.className = 'aichat-btn-group';
+			btnGroup.innerHTML = `
+			<button class="aichat-btn btn-cancel">Cancel</button>
+			<button class="aichat-btn btn-danger">Delete</button>
+			`;
+			card.appendChild(btnGroup);
+			overlay.appendChild(card);
+			document.body.appendChild(overlay);
+
+			const cleanup = (result: boolean) => {
+				document.removeEventListener('keydown', onKeydown);
+				overlay.remove();
+				resolve(result);
+			};
+			const onKeydown = (e: KeyboardEvent) => {
+				if (e.key === 'Escape') cleanup(false);
+			};
+			document.addEventListener('keydown', onKeydown);
+			// Clicking the dimmed backdrop (outside the card) cancels, mirroring native confirm's dismiss behavior
+			overlay.addEventListener('click', (e) => {
+				if (e.target === overlay) cleanup(false);
+			});
+			btnGroup.querySelector('.btn-cancel')?.addEventListener('click', () => cleanup(false));
+			btnGroup.querySelector('.btn-danger')?.addEventListener('click', () => cleanup(true));
+		});
 	}
 }
