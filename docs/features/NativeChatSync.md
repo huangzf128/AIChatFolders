@@ -70,22 +70,44 @@ longer exists (or no longer has that title) on the native side.
   `updateDomainSettings()`, domain-scoped storage key.
 - `src/adapters/LeftSidebar.ts` — `initNativeChatSync()` (shared bridge
   listener); also `cleanChatId()`, a shared utility stripping query
-- Platform-specific MAIN-world bridge script — network interception and
-  `notifyConversationChanged()` dispatch.
-- `src/components/RightSidebar.ts` — `aichat:native-change` listener and
-  the `syncNativeChanges` gate.
+  string / fragment from a raw href-derived chat id.
+- Platform-specific MAIN-world bridge scripts — network interception and
+  `notifyConversationChanged()` dispatch:
+  - `src/bridges/claude-main-bridge.ts` — `fetch`/XHR, id from URL
+    (`/chat_conversations/{uuid}`).
+  - `src/bridges/gemini-main-bridge.ts` — XHR, id from `f.req` body
+    (`batchexecute?rpcids=qWymEb`).
+  - `src/bridges/chatgpt-main-bridge.ts` — `fetch`/XHR, id from URL
+    (`/backend-api/conversation/id/{uuid}`).
+  - `src/bridges/deepseek-main-bridge.ts` — `fetch`/XHR, id from JSON
+    body (`POST /api/v0/chat_session/delete`).
+- `src/ui/RightSidebar.ts` — `aichat:native-change` listener and the
+  `syncNativeChanges` gate.
 
 ## Known Limitations
-- Deletion detection is per-platform and hand-coded (Claude: DELETE
-  request; Gemini: `batchexecute?rpcids=qWymEb`). Adding a new platform
-  requires manually finding its equivalent network signal — there is no
-  generic detection strategy across platforms.
+- Deletion detection is per-platform and hand-coded — there is no generic
+  detection strategy across platforms:
+  - Claude: `DELETE` request to `/chat_conversations/{uuid}`.
+  - Gemini: `batchexecute?rpcids=qWymEb` (XHR, id inside `f.req`).
+  - ChatGPT: `DELETE /backend-api/conversation/id/{uuid}` (id in the URL).
+  - DeepSeek: `POST /api/v0/chat_session/delete` (id in the JSON body,
+    not the URL).
+- On ChatGPT, sync lags a few seconds behind the visible deletion in the
+  UI. The extension broadcasts only once the real `DELETE` request
+  resolves successfully, and ChatGPT's own client appears to delay
+  issuing that request well after the row disappears from the sidebar.
+  This is believed to be inherent to ChatGPT's client behavior, not the
+  interception logic — reacting earlier (e.g. on click) was deliberately
+  avoided, since it would risk deleting the local reference before the
+  user confirms/if they cancel.
+
   
 ## Revision History
 | Date | Commit | Description |
 |------|--------|--------------|
 | 2026-07-30 | `<commit-hash>` | Initial implementation: native deletion sync for Claude only, built on the generalized `aichatfolders:conversation-changed` / `aichat:native-change` event contract (`NativeChangeType`) so other change types and platforms can be added without renaming events or methods. `syncNativeChanges` introduced as a `DomainSettings` toggle. |
 | 2026-08-04 | `<commit-hash>` | Extended to Gemini via `batchexecute?rpcids=qWymEb` XHR interception (`gemini-main-bridge.ts`). Fixed a silent id-mismatch bug where tracking-param query strings on Gemini sidebar links leaked into stored chat ids; introduced shared `LeftSidebarAdapter.cleanChatId()` to prevent recurrence on other platforms. |
+| 2026-08-04 | `<commit-hash>` | Extended to ChatGPT via fetch interception of `DELETE /backend-api/conversation/id/{uuid}` (`chatgpt-main-bridge.ts`), reusing the fetch-primary/XHR-fallback pattern from `claude-main-bridge.ts`. Extended to DeepSeek via fetch interception of `POST /api/v0/chat_session/delete` (`deepseek-main-bridge.ts`), reading `chat_session_id` from the JSON request body since the id isn't in the URL. All four supported platforms now have native deletion sync. |
 
 
 ## TODO

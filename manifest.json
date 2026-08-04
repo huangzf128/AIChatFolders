@@ -34,6 +34,18 @@
 		"js": ["dist/bridges/gemini-main-bridge.js"],
 		"world": "MAIN",
 		"run_at": "document_start"
+   },
+   {
+		"matches": ["https://chatgpt.com/*"],
+		"js": ["dist/bridges/chatgpt-main-bridge.js"],
+		"world": "MAIN",
+		"run_at": "document_start"
+   },
+   {
+		"matches": ["https://chat.deepseek.com/*"],
+		"js": ["dist/bridges/deepseek-main-bridge.js"],
+		"world": "MAIN",
+		"run_at": "document_start"		
 	}	
 	]
 }

@@ -59,6 +59,12 @@
 - 鼠标悬停在该选项上时，会弹出一个级联菜单，展示当前用户的所有文件夹树，支持多级导航。
 - 点击任一文件夹后，当前对话即被保存至该文件夹，并自动展开侧边栏并在新添加的节点上闪烁高亮。
 
+### 2.7 原生删除同步
+
+- 直接在 ChatGPT、Claude、Gemini 或 DeepSeek 的原生界面中删除对话时，扩展会自动检测到并同步移除本地文件夹中对应的引用，无需手动清理。
+- 检测原理是在 MAIN world 中注入桥接脚本，拦截各平台自己的删除网络请求——因为这几个平台都不会把删除操作暴露成 DOM 事件。
+- 可在设置页关闭此功能(`syncNativeChanges`)，因为它是基于网络请求特征匹配触发的自动、破坏性本地操作。
+  
 ---
 
 ## 3. 用户体验
@@ -102,7 +108,8 @@
 | Claude | 从 localStorage 的 `__qk_hint_account_uuid` 或通过 React Fiber 注入桥接（MAIN world） | 点击 `a[href*="/chat/"]`，回退 History API | `[role="menu"] div:first-child` |
 | DeepSeek | 读取 `localStorage.userToken`，调用 `/api/v0/users/current` 获取 ID | 点击 `a[href*="/a/chat/s/"]`，回退 History API | `.ds-floating-position-wrapper .ds-dropdown-menu` |
 
-**Claude 特殊桥接**：由于内容脚本处于孤立世界（ISOLATED world），无法直接访问 React Fiber 内部属性，因此通过注入 `claude-main-bridge.js`（运行于 MAIN world）来传递用户 UUID，采用事件驱动机制实现数据交换。
+**MAIN-world 桥接脚本**：内容脚本运行在孤立世界（ISOLATED world），既无法访问页面自身的 `fetch`/XHR 调用，也无法访问 React Fiber 内部属性。为此，扩展为每个平台各注入一个专属的 MAIN-world 桥接脚本——`claude-main-bridge.js`、`gemini-main-bridge.js`、`chatgpt-main-bridge.js`、`deepseek-main-bridge.js`——用于读取账户信息（Claude）和/或拦截原生删除请求（四个平台均有），再通过 `CustomEvent` 把结果传回孤立世界。
+
 
 ### 4.4 安全性
 
@@ -115,7 +122,7 @@
 ## 5. 注意事项
 
 - **登录状态检测**：扩展仅在确认用户已登录后才激活，避免干扰未登录页面。
-- **聊天删除同步**：若用户在 AI 平台中删除了某个对话，扩展侧边栏中的引用条目**不会自动删除**（因为平台没有提供删除通知）。但点击该条目时会因无法找到对应对话而失败，用户可手动移除。
+- **聊天删除同步**：在 ChatGPT、Claude、Gemini 或 DeepSeek 中直接删除对话时，扩展会自动从本地文件夹中移除对应引用（详见 §2.7 原生删除同步）。此功能可在设置中关闭；关闭后，孤立的引用条目点击时会正常失败，用户可手动删除。注意：ChatGPT 上的同步目前比 UI 上看到的删除动作要慢几秒，因为扩展只有在 ChatGPT 自己的删除请求真正完成后才会响应——详见 `NativeChatSync.md` 的 Known Limitations。
 - **浏览器兼容**：目前仅支持 Chrome/Edge（基于 Chromium）的 Manifest V3。Firefox 支持计划中。
 
 ---

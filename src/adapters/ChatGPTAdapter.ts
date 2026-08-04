@@ -24,6 +24,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 	 */
 	public init(): void {
 		this.initClickListener();
+		this.initNativeChatSync();
 	}
 
     initClickListener(): void {

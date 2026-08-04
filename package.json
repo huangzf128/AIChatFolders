@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"vite build --watch\" \"vite build --watch --config vite.bridge.claude.config.ts\" \"vite build --watch --config vite.bridge.gemini.config.ts\"",
-    "build": "vite build && vite build --config vite.bridge.claude.config.ts && vite build --config vite.bridge.gemini.config.ts",
+    "dev": "concurrently \"vite build --watch\" \"vite build --watch --config vite.bridge.claude.config.ts\" \"vite build --watch --config vite.bridge.gemini.config.ts\" \"vite build --watch --config vite.bridge.chatgpt.config.ts\" \"vite build --watch --config vite.bridge.deepseek.config.ts\"",
+    "build": "vite build && vite build --config vite.bridge.claude.config.ts && vite build --config vite.bridge.gemini.config.ts && vite build --config vite.bridge.chatgpt.config.ts && vite build --config vite.bridge.deepseek.config.ts",
     "check": "tsc --noEmit"
   },
   "keywords": [],

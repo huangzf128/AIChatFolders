@@ -60,6 +60,18 @@
 - Hovering over this option opens a cascading submenu that displays the user's entire folder hierarchy, supporting multi-level navigation.
 - Clicking a folder instantly saves the current chat to that folder, automatically opens the sidebar, and flashes the newly added node with a green highlight.
 
+### 2.7 Native Chat Sync
+
+- Deleting a conversation directly through a platform's own UI (ChatGPT,
+  Claude, Gemini, or DeepSeek) is detected automatically and mirrored onto
+  the corresponding entry in local folders — no manual cleanup required.
+- Detection works by intercepting each platform's own delete network
+  request from a MAIN-world bridge script, since none of these platforms
+  expose deletion as a DOM event.
+- Can be turned off from the settings page (`syncNativeChanges`), since it
+  performs an automatic, destructive local action based on network-request
+  pattern-matching.
+
 ---
 
 ## 3. User Experience
@@ -107,7 +119,15 @@ The project follows the **Adapter Pattern** to ensure cross-platform reusability
 | Claude    | Read localStorage keys (`__qk_hint_account_uuid`) or via a MAIN-world bridge.    | Click `a[href*="/chat/"]` natively; fallback to History API.                                   | `[role="menu"] div:first-child`                                  |
 | DeepSeek  | Read `localStorage.userToken` and call `/api/v0/users/current`.                  | Click `a[href*="/a/chat/s/"]` natively; fallback to History API.                               | `.ds-floating-position-wrapper .ds-dropdown-menu`               |
 
-> **Claude MAIN-world bridge**: Because content scripts run in an isolated world and cannot access React Fiber properties, the extension injects `claude-main-bridge.js` into the MAIN world. It uses an event-driven mechanism (`CustomEvent`) to securely pass the account UUID back to the isolated world.
+> **MAIN-world bridges**: Content scripts run in an isolated JS world and
+> cannot observe the page's own `fetch`/XHR calls or React Fiber
+> properties. To work around this, the extension injects a dedicated
+> MAIN-world bridge script per platform — `claude-main-bridge.js`,
+> `gemini-main-bridge.js`, `chatgpt-main-bridge.js`, and
+> `deepseek-main-bridge.js` — that reads account info (Claude) and/or
+> intercepts native deletion requests (all four), then relays results
+> back to the isolated world via `CustomEvent`.
+
 
 ### 4.4 Security & Privacy
 
@@ -119,9 +139,19 @@ The project follows the **Adapter Pattern** to ensure cross-platform reusability
 
 ## 5. Important Notes
 
-- **Login detection**: The extension only activates after confirming the user is logged in, preventing interference with unauthenticated pages.
-- **Chat deletion sync**: If a user deletes a conversation directly on the AI platform, the extension **does not automatically remove** its reference (since the platform offers no deletion event). Clicking the orphaned entry will fail gracefully, and users can manually remove it via the delete button.
-- **Browser compatibility**: Currently supports Chrome and Edge (based on Chromium) with Manifest V3. Firefox support is planned.
+- **Login detection**: The extension only activates after confirming the 
+  user is logged in, preventing interference with unauthenticated pages.
+- **Chat deletion sync**: Deleting a conversation directly on ChatGPT,
+  Claude, Gemini, or DeepSeek automatically removes its reference from
+  local folders (see Native Chat Sync, §2.7). This can be disabled from
+  settings; when disabled, an orphaned entry simply fails gracefully on
+  click, and can be removed manually via the delete button. Note: on
+  ChatGPT this sync currently lags a few seconds behind the visible
+  deletion in the UI, since the extension only reacts once ChatGPT's own
+  delete request actually completes — see Known Limitations in
+  `NativeChatSync.md`.
+- **Browser compatibility**: Currently supports Chrome and Edge
+   (based on Chromium) with Manifest V3. Firefox support is planned.
 
 ---
 
