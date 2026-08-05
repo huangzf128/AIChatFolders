@@ -174,6 +174,8 @@ export abstract class LeftSidebarAdapter {
 		window.addEventListener('aichatfolders:conversation-changed', (e: Event) => {
 			const detail = (e as CustomEvent<{ chatId: string; type: NativeChangeType; newTitle?: string }>).detail;
 			if (!detail?.chatId || !detail.type) return;
+			console.log("==========================================");
+			console.log(detail);
 			window.dispatchEvent(new CustomEvent('aichat:native-change', { detail }));
 		});
 	}

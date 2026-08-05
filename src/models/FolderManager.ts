@@ -113,7 +113,7 @@ export class FolderManager {
 		const key = this.getDomainStorageKey(platformId);
 		return new Promise((resolve) => {
 			chrome.storage.local.get([key], (result) => {
-			resolve({ ...DEFAULT_DOMAIN_SETTINGS, ...(result[key] || {}) });
+				resolve({ ...DEFAULT_DOMAIN_SETTINGS, ...(result[key] || {}) });
 			});
 		});
 	}
@@ -124,8 +124,8 @@ export class FolderManager {
 		const key = this.getDomainStorageKey(platformId);
 		return new Promise((resolve, reject) => {
 			chrome.storage.local.set({ [key]: merged }, () => {
-			if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-			else resolve(merged);
+				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+				else resolve(merged);
 			});
 		});
 	}
@@ -441,4 +441,28 @@ export class FolderManager {
         await this.saveFolders(updated);
         return updated;
     }
+
+	/**
+	 * Renames every node matching the given id, in place, without touching
+	 * position, color, or children. A single chat can be saved into multiple
+	 * folders, so all matches are updated — not just the first one found.
+	 * @param {string} id - Unique identifier of the target node.
+	 * @param {string} newName - The new display name / chat title.
+	 * @returns {Promise<FolderData[]>} The updated folder tree.
+	 */
+	static async renameNode(id: string, newName: string): Promise<FolderData[]> {
+		const folders = await this.getFolders();
+		const sanitizedName = newName.trim().slice(0, MAX_CHAT_NAME_LENGTH);
+		const renameInTree = (list: FolderData[]): void => {
+			for (const f of list) {
+				if (f.id === id) {
+					f.name = sanitizedName;
+				}
+				if (f.children) renameInTree(f.children);
+			}
+		};
+		renameInTree(folders);
+		await this.saveFolders(folders);
+		return folders;
+	}
 }

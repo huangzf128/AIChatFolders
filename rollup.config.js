@@ -25,23 +25,36 @@ function bundle(name, input, extraPlugins = []) {
   };
 }
 
-const copyStaticAssets = copy({
-  targets: [
-    { src: '_locales/**/*', dest: 'dist/_locales' },
-    { src: 'icons/**/*', dest: 'dist/icons' },
-    { src: 'options.html', dest: 'dist' },
-    { src: 'manifest.json', dest: 'dist' },
-  ],
-  verbose: true,
-});
+const copyConfig = {
+	input: 'src/dummy.ts',
+	output: {
+		file: 'dist/dummy.js',
+		format: 'iife',
+	},
+	plugins: [
+		copy({
+		targets: [
+			{ src: '_locales/*', dest: 'dist/_locales' },
+			{ src: 'icons/**/*', dest: 'dist/icons' },
+			{ src: 'options.html', dest: 'dist' },
+			{ src: 'manifest.json', dest: 'dist' },
+		],
+		verbose: true,
+		watch: true,
+		}),
+	],
+	watch: {
+		include: ['_locales/**/*', 'icons/**/*', '*.html', 'manifest.json'],
+	},
+};
 
 module.exports = [
   bundle('content', 'src/content.ts'),
   bundle('background', 'src/background.ts'),
   bundle('options', 'src/options.ts'),
-  // Static assets only need to be copied once — attach to any one bundle.
-  bundle('bridges/claude-main-bridge', 'src/bridges/claude-main-bridge.ts', [copyStaticAssets]),
+  bundle('bridges/claude-main-bridge', 'src/bridges/claude-main-bridge.ts'),
   bundle('bridges/gemini-main-bridge', 'src/bridges/gemini-main-bridge.ts'),
   bundle('bridges/chatgpt-main-bridge', 'src/bridges/chatgpt-main-bridge.ts'),
   bundle('bridges/deepseek-main-bridge', 'src/bridges/deepseek-main-bridge.ts'),
+  copyConfig
 ];

@@ -358,8 +358,8 @@ export class RightSidebar {
 					}
 					case 'rename': {
 						if (!detail.newTitle) break;
-						// const updated = await FolderManager.renameNode(detail.chatId, detail.newTitle);
-						// this.render(updated);
+						const updated = await FolderManager.renameNode(detail.chatId, detail.newTitle);
+						this.render(updated);
 						break;
 					}
 				}

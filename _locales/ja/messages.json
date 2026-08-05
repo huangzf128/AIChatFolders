@@ -1,0 +1,14 @@
+{
+  "optionsTitle": { "message": "AIChatFolders 設定" },
+  "optionsSubTitle": { "message": "各プラットフォームの同期設定とデータバックアップを管理" },
+  "sectionSyncTitle": { "message": "チャット同期設定" },
+  "syncDesc": { "message": "ネイティブサイドバーでチャットの名前変更や削除が行われた際に、ローカルフォルダの記録を自動的に同期します" },
+  "sectionDataTitle": { "message": "データ管理" },
+  "exportConfig": { "message": "JSONをエクスポート" },
+  "importConfig": { "message": "JSONをインポート" },
+  "exportDesc": { "message": "すべてのフォルダとノード構造をJSONファイルにエクスポートします" },
+  "importDesc": { "message": "JSON設定ファイルからフォルダ構造を復元します" },
+  "importSuccess": { "message": "インポートに成功しました！設定を再読み込みしています..." },
+  "importFailed": { "message": "インポートに失敗しました。ファイル形式が正しいJSONか確認してください。" },
+  "saved": { "message": "保存しました！" }
+}

@@ -133,35 +133,52 @@ const CHAT_CONVERSATION_ID_PATTERN =
   /\/chat_conversations\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:[/?]|$)/;
 
 /** Broadcasts a native chat change (delete, rename, ...) to the isolated world (ClaudeAdapter). */
-function notifyConversationChanged(
-  chatId: string,
-  type: 'delete' | 'rename',
-  extra?: { newTitle?: string }
-): void {
-  window.dispatchEvent(new CustomEvent('aichatfolders:conversation-changed', {
-    detail: { chatId, type, ...extra }
-  }));
+function notifyConversationChanged(chatId: string, type: 'delete' | 'rename', extra?: { newTitle?: string }): void {
+	window.dispatchEvent(new CustomEvent('aichatfolders:conversation-changed', {
+		detail: { chatId, type, ...extra }
+	}));
 }
 
 /** Resolves the request URL regardless of whether `fetch` was called with a string or a `Request`. */
 function resolveRequestUrl(input: RequestInfo | URL): string {
-  if (typeof input === 'string') return input;
-  if (input instanceof Request) return input.url;
-  return input.toString();
+	if (typeof input === 'string') return input;
+	if (input instanceof Request) return input.url;
+	return input.toString();
+}
+
+/**
+ * Extracts the new title from a PUT request body, if present.
+ * Claude's rename request body looks like: { "name": "New Title" }.
+ */
+function extractNewTitle(body: BodyInit | null | undefined): string | undefined {
+	if (typeof body !== 'string') return undefined;
+	try {
+		const parsed = JSON.parse(body);
+		return typeof parsed?.name === 'string' ? parsed.name : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 const originalFetch = window.fetch;
 window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
-  const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
-  const url = resolveRequestUrl(input);
-  const response = await originalFetch.call(this, input, init);
-  // Only broadcast after a genuinely successful response, so a failed
-  // delete (network error / 403 / etc.) never wipes local folder records.
-if (method === 'DELETE' && response.ok) {
-  const match = url.match(CHAT_CONVERSATION_ID_PATTERN);
-  if (match) notifyConversationChanged(match[1]!, 'delete');
-}
-  return response;
+	const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+	const url = resolveRequestUrl(input);
+	const response = await originalFetch.call(this, input, init);
+	// Only broadcast after a genuinely successful response (202 Accepted counts as ok),
+	// so a failed delete/rename (network error/403/etc.) never touches local folder records.
+	if (response.ok) {
+		const match = url.match(CHAT_CONVERSATION_ID_PATTERN);
+		if (match) {
+			if (method === 'DELETE') {
+				notifyConversationChanged(match[1]!, 'delete');
+			} else if (method === 'PUT') {
+				const newTitle = extractNewTitle(init?.body);
+				if (newTitle) notifyConversationChanged(match[1]!, 'rename', { newTitle });
+			}
+		}
+	}
+	return response;
 };
 
 // Belt-and-braces: also patch XMLHttpRequest in case a deletion path
@@ -175,13 +192,19 @@ XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...
 
 const originalXhrSend = XMLHttpRequest.prototype.send;
 XMLHttpRequest.prototype.send = function (...args: any[]) {
-  this.addEventListener('loadend', () => {
-    const method = (this as any).__aichatfolders_method;
-    const url = (this as any).__aichatfolders_url as string | undefined;
-    if (method === 'DELETE' && this.status >= 200 && this.status < 300 && url) {
-      const match = url.match(CHAT_CONVERSATION_ID_PATTERN);
-	  if (match != null) notifyConversationChanged(match[1]!, 'delete')
-    }
-  });
-  return originalXhrSend.apply(this, args as any);
+	(this as any).__aichatfolders_body = args[0];
+	this.addEventListener('loadend', () => {
+		const method = (this as any).__aichatfolders_method;
+		const url = (this as any).__aichatfolders_url as string | undefined;
+		if (!url || this.status < 200 || this.status >= 300) return;
+		const match = url.match(CHAT_CONVERSATION_ID_PATTERN);
+		if (!match) return;
+		if (method === 'DELETE') {
+			notifyConversationChanged(match[1]!, 'delete');
+		} else if (method === 'PUT') {
+			const newTitle = extractNewTitle((this as any).__aichatfolders_body);
+			if (newTitle) notifyConversationChanged(match[1]!, 'rename', { newTitle });
+		}
+	});
+	return originalXhrSend.apply(this, args as any);
 };
