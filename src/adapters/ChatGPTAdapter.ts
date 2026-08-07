@@ -12,6 +12,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
     // Target selector for ChatGPT's native popover action menu
     itemSelector = '[role="menu"] > div[role="group"]:last-child';
 	protected override historySelector = '#history';
+	protected override scrollContainerSelector = 'nav[data-scrolled-from-end]';
 	protected override rowSelector = 'li';
 	protected override linkSelector = 'a[href*="/c/"]';
 
@@ -102,27 +103,6 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
     resolveChatUrl(chatId: string): string {
         return `https://chatgpt.com/c/${chatId}`;
     }
-
-	/**
-	* Smooth navigation for ChatGPT SPA
-	*/
-	async smoothNavigate(chatId: string, fallbackUrl: string): Promise<void> {
-		const targetUrl = this.resolveChatUrl(chatId);
-		
-		// 1. Attempt to find the native chat link in the left sidebar and trigger a click directly
-        // This is the safest way to let the SPA's internal router handle the transition.
-		const nativeLink = document.querySelector(`a[href*="/c/${chatId}"]`) as HTMLAnchorElement | null;
-		if (nativeLink) {
-			nativeLink.click();
-			return;
-		}
-
-		// 2. Fallback: Use the History API for SPA routing navigation.
-		window.history.pushState({}, '', targetUrl);
-		
-		// Dispatch a popstate event to notify the frontend framework (Next.js) that the route has changed.
-		window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
-	}
 
 	async getAccountKey(): Promise<string | null> {
 		if (this.accountKey) {

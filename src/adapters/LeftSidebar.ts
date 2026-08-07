@@ -106,7 +106,7 @@ export abstract class LeftSidebarAdapter {
 			// adapter to fall back to whatever "currently active chat" heuristic
 			// it has (wrong chat, wrong title).
 			if (target.closest('.aichat-folder-menu-item, .aichat-cascade-menu')) {
-			return;
+				return;
 			}
 
 			let chatId = '';
@@ -174,8 +174,6 @@ export abstract class LeftSidebarAdapter {
 		window.addEventListener('aichatfolders:conversation-changed', (e: Event) => {
 			const detail = (e as CustomEvent<{ chatId: string; type: NativeChangeType; newTitle?: string }>).detail;
 			if (!detail?.chatId || !detail.type) return;
-			console.log("==========================================");
-			console.log(detail);
 			window.dispatchEvent(new CustomEvent('aichat:native-change', { detail }));
 		});
 	}
@@ -339,17 +337,76 @@ export abstract class LeftSidebarAdapter {
     abstract resolveChatUrl(chatId: string): string;
 
 	/**
-     * Orchestrates decoupled soft client navigation for Single Page Application (SPA) layout engines.
-     * Falls back gracefully to explicit full location reloads if specialized handling isn't provided.
-     * @virtual
-     * @param {string} chatId - Target transaction thread metadata key.
-     * @param {string} fallbackUrl - The complete destination URL structure backup.
-     * @returns {Promise<void>}
-     */
-    async smoothNavigate(chatId: string, fallbackUrl: string): Promise<void> {
-        // Default: full page reload
-        window.location.href = fallbackUrl;
-    }
+	 * CSS selector (evaluated against `document`, not the row container) for
+	 * the platform's scrollable list element. Used only as a fallback when the
+	 * target row hasn't rendered yet (lazy/virtualized list) — scrolling this
+	 * element forces more rows to load before retrying the lookup.
+	 *
+	 * Intentionally separate from `historySelector`: on some platforms the
+	 * element rows are searched in is not the element that actually scrolls
+	 * (e.g. ChatGPT, Gemini). Leave as `null` (default) to skip the
+	 * scroll-and-retry fallback entirely (e.g. Claude, whose current sidebar
+	 * markup no longer supports this pattern).
+	 * @protected
+	 */
+	protected scrollContainerSelector: string | null = null;
+
+	/**
+	 * Resolves the actual scrollable element used by the scroll-and-retry
+	 * fallback. Default: query `scrollContainerSelector` against the whole
+	 * document. Override when the scrollable element can't be found this way
+	 * — e.g. DeepSeek's `historySelector` matches both an outer wrapper and,
+	 * nested inside it, an inner element with the same classes; only that
+	 * inner element is actually scrollable, so it must be looked up relative
+	 * to `container` rather than via a standalone document-level selector.
+	 * @protected
+	 * @virtual
+	 */
+	protected resolveScrollContainer(container: HTMLElement | null): HTMLElement | null {
+	return this.scrollContainerSelector
+		? (document.querySelector(this.scrollContainerSelector) as HTMLElement | null)
+		: null;
+	}
+
+	/**
+	 * Orchestrates decoupled soft client navigation for SPA layout engines.
+	 * Shared across all platforms: locate the native row for `chatId` inside
+	 * the row-lookup container and click it; if not rendered yet, optionally
+	 * scroll the element from `resolveScrollContainer()` a few times to force
+	 * more rows to load and retry; finally fall back to a hard navigation.
+	 * @virtual
+	 * @param {string} chatId - Target transaction thread metadata key.
+	 * @param {string} fallbackUrl - The complete destination URL structure backup.
+	 * @returns {Promise<void>}
+	 */
+	async smoothNavigate(chatId: string, fallbackUrl: string): Promise<void> {
+		const targetUrl = this.resolveChatUrl(chatId);
+		const container = document.querySelector(this.historySelector) as HTMLElement | null;
+		const SELECTOR = `${this.linkSelector}[href*="/${chatId}"]`;
+		const tryClick = (): boolean => {
+			const nativeLink = container?.querySelector(SELECTOR) as HTMLAnchorElement | null;
+			if (nativeLink) {
+				nativeLink.click();
+				return true;
+			}
+			return false;
+		};
+		if (tryClick()) return;
+
+		// Not rendered yet (lazy/virtualized list): scroll to force more rows to
+		// load. No-op when the platform has no scroll fallback.
+		const scrollContainer = this.resolveScrollContainer(container);
+		if (scrollContainer) {
+			for (let i = 0; i < 5; i++) {
+				scrollContainer.scrollTop = scrollContainer.scrollHeight;
+				await new Promise((r) => setTimeout(r, 450));
+				if (tryClick()) return;
+			}
+		}
+
+		// Final fallback: hard navigation, guaranteed to work regardless of router state.
+		window.location.href = targetUrl || fallbackUrl;
+	}
 
 	/** Returns every chat row currently rendered in the native sidebar, paired with its chat id. */
 	public getChatRows(): { chatId: string; row: HTMLElement }[] {

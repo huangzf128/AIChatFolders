@@ -23,7 +23,7 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
     platformId = 'claude';
     // Selector for Claude's action menu container (adjust selector based on actual DOM inspection)
     itemSelector = '[role="menu"] div:first-child';
-	protected override historySelector = 'ul.flex.flex-col';
+	protected override historySelector = 'div.flex.flex-col';
 	protected override rowSelector = 'li';
 	protected override linkSelector = 'a[href*="/chat/"]';
 
@@ -114,24 +114,6 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
      */
     resolveChatUrl(chatId: string): string {
         return `https://claude.ai/chat/${chatId}`;
-    }
-
-    /**
-     * Smooth navigation for Claude SPA.
-     */
-    async smoothNavigate(chatId: string, fallbackUrl: string): Promise<void> {
-        const targetUrl = this.resolveChatUrl(chatId);
-        
-        // 1. Attempt to find the native chat link in the sidebar and trigger a click directly
-        const nativeLink = document.querySelector(`a[href*="/chat/${chatId}"]`) as HTMLAnchorElement | null;
-        if (nativeLink) {
-            nativeLink.click();
-            return;
-        }
-
-        // 2. Fallback to History API for SPA routing navigation if the element isn't in the DOM
-        window.history.pushState({}, '', targetUrl);
-        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }
 
 	async getAccountKey(): Promise<string | null> {

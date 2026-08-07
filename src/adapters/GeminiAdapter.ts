@@ -10,6 +10,7 @@ export class GeminiAdapter extends LeftSidebarAdapter {
     // Gemini's menu content container selector
     itemSelector = 'div.mat-mdc-menu-content';
 	protected override historySelector = '#sidenav-section-content-chats';
+	protected override scrollContainerSelector = 'infinite-scroller';
 	protected override rowSelector = 'gem-nav-list-item';
 	protected override linkSelector = 'a[href*="/app/"]';
 
@@ -99,35 +100,6 @@ export class GeminiAdapter extends LeftSidebarAdapter {
     resolveChatUrl(chatId: string): string {
         return `https://gemini.google.com/app/${chatId}`;
     }
-
-	/**
-	 * Smooth navigation for Gemini SPA
-	 */
-	async smoothNavigate(chatId: string, fallbackUrl: string): Promise<void> {
-		const SELECTOR = `div.chat-history a[href*="${chatId}"]`;
-		const container = document.querySelector('infinite-scroller');
-		
-		const tryClick = (): boolean => {
-			const nativeLink = document.querySelector(SELECTOR) as HTMLAnchorElement | null;
-			if (nativeLink) {
-				nativeLink.click();
-				return true;
-			}
-			return false;
-		};
-
-		if (tryClick()) return;
-
-		if (container) {
-			for (let i = 0; i < 10; i++) {
-				container.scrollTop = container.scrollHeight;
-				await new Promise(r => setTimeout(r, 450));
-				if (tryClick()) return;
-			}
-		}
-
-		window.location.href = fallbackUrl;
-	}
 
 	/**
 	 * Extract unique user ID (email or hash) via fallback methods:

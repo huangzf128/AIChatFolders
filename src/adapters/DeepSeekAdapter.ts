@@ -11,6 +11,7 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
     // Selector for DeepSeek's chat list container or action dropdown menu
     itemSelector = '.ds-floating-position-wrapper .ds-dropdown-menu'; 
 	protected override historySelector = 'div.ds-scroll-area.ds-scroll-area--show-on-focus-within';
+	protected override scrollContainerSelector = this.historySelector;
 	protected override rowSelector = 'a[href*="/a/chat/s/"]';
 	protected override linkSelector = 'a[href*="/a/chat/s/"]';
 
@@ -84,23 +85,16 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
         return `https://chat.deepseek.com/a/chat/s/${chatId}`;
     }
 
-    /**
-     * Smooth navigation for DeepSeek SPA.
-     */
-    async smoothNavigate(chatId: string, fallbackUrl: string): Promise<void> {
-        const targetUrl = this.resolveChatUrl(chatId);
-        
-        // 1. Attempt to find the native chat link in the sidebar and trigger a click directly
-        const nativeLink = document.querySelector(`a[href*="/chat/${chatId}"]`) as HTMLAnchorElement | null;
-        if (nativeLink) {
-            nativeLink.click();
-            return;
-        }
-
-        // 2. Fallback to History API for SPA routing navigation if the element isn't in the DOM
-        window.history.pushState({}, '', targetUrl);
-        window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
-    }
+	/**
+	 * `historySelector` matches both an outer wrapper and, nested inside it,
+	 * an inner element sharing the same classes — only that inner element is
+	 * actually scrollable, so it's looked up relative to `container`.
+	 * @protected
+	 * @override
+	 */
+	protected override resolveScrollContainer(container: HTMLElement | null): HTMLElement | null {
+		return (container?.querySelector(this.historySelector) as HTMLElement | null) ?? null;
+	}
 
 	/**
 	 * Reads the DeepSeek session token from localStorage.
