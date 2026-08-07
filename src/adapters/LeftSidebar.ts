@@ -123,6 +123,21 @@ export abstract class LeftSidebarAdapter {
 					}
 				}
 			}
+
+			// Primary lookup above only knows about the regular sidebar shape. Some
+			// platforms surface chat rows in an entirely different DOM structure
+			// elsewhere on the page (e.g. Claude's "Show more" expanded history
+			// list, rendered as a <table> in #main-content instead of the sidebar).
+			// Give the adapter one chance to recognize that alternate shape before
+			// giving up.
+			if (!chatId) {
+				const fallback = this.resolveFallbackTargetChat(target);
+				if (fallback) {
+					this.currentTargetChat = fallback;
+					chatId = fallback.id;
+				}
+			}
+
 			// No chat id resolved: this click didn't open a chat-row menu, so clear any
 			// stale target and skip injecting the folder menu item into unrelated menus.
 			if (!chatId) {
@@ -137,6 +152,22 @@ export abstract class LeftSidebarAdapter {
 		}, true); // Use capture phase to ensure the ID is grabbed before the menu opens
 	}
 
+	/**
+	 * Secondary resolution hook, tried only when the primary
+	 * historySelector/rowSelector/linkSelector lookup above failed to resolve
+	 * a chat id — i.e. the click didn't originate from within the regular
+	 * sidebar at all. Lets a platform recognize an alternate native DOM shape
+	 * that carries chat rows elsewhere on the page.
+	 * Default: no fallback (most platforms only ever have the sidebar shape).
+	 * @protected
+	 * @virtual
+	 * @param target - The original click event target.
+	 * @returns Resolved chat id/title pair, or null if this click doesn't match.
+	 */
+	protected resolveFallbackTargetChat(target: HTMLElement): { id: string; title: string } | null {
+		return null;
+	}
+	
 	/**
 	* Extracts the display title for a chat row's link element.
 	* Default: plain text content of the link, falling back to the document title.

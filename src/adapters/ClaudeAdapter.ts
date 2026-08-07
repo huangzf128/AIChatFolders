@@ -54,6 +54,37 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 		return linkEl?.textContent?.trim() || document.title;
 	}
 
+	// Claude's "Show more" expanded history view replaces the main chat panel
+	// with a <table data-cds="DataTable"> listing recent chats — structurally
+	// unrelated to the sidebar, so historySelector/rowSelector never match it.
+	private readonly expandedHistoryRowSelector = '#main-content table[data-cds="Table"] tr';
+	private readonly expandedHistoryLinkSelector = 'a[href*="/chat/"]';
+
+	/**
+	 * Recognizes a click inside the expanded history table (see above) and
+	 * resolves the chat id/title from its row, mirroring the normal
+	 * sidebar-row extraction.
+	 *
+	 * Title lookup here can't reuse getRowTitle(linkEl): unlike the sidebar
+	 * rows, the title text isn't inside the anchor at all — it lives in a
+	 * sibling <span> next to it (a[href] followed by
+	 * <span class="contents">...<span class="truncate">Title</span>...</span>).
+	 * Look it up from the row instead of the link.
+	 * @protected
+	 * @override
+	 */
+	protected override resolveFallbackTargetChat(target: HTMLElement): { id: string; title: string } | null {
+		const row = target.closest(this.expandedHistoryRowSelector) as HTMLElement | null;
+		if (!row) return null;
+		const linkEl = row.querySelector(this.expandedHistoryLinkSelector) as HTMLAnchorElement | null;
+		const rawId = linkEl?.getAttribute('href')?.split('/').pop() || '';
+		const chatId = this.cleanChatId(rawId);
+		if (!chatId) return null;
+		const titleEl = row.querySelector('span.truncate') as HTMLElement | null;
+		const title = titleEl?.textContent?.trim() || document.title;
+		return { id: chatId, title };
+	}
+
 	protected createMenuItem(): void {
         const menuContainer = document.querySelector(this.itemSelector);
         if (!menuContainer || menuContainer.querySelector('.aichat-folder-menu-item')) return;

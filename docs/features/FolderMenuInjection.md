@@ -21,6 +21,11 @@ leaving the native menu.
 - **Clean handoff back to the native UI**: picking a folder saves the
   chat and closes both our cascade menu and the native menu it's
   anchored inside, leaving no leftover open menu behind.
+- **Resolves the target chat even in alternate native layouts**: some
+  platforms surface chat rows outside the usual sidebar shape (e.g.
+  Claude's expanded "Show more" history table); a per-adapter fallback
+  hook lets those still resolve the correct chat instead of silently
+  failing to inject the menu item.
 
 ## Technical Implementation
 
@@ -30,12 +35,22 @@ leaving the native menu.
   levels, `removeCascadeMenus()` / `removeSubMenus()` tear them down,
   and `startCloseTimer()` / `clearCloseTimer()` implement the
   hover-driven grace period before an unused level auto-closes.
+- **`initClickListener()`** (base class) is a capture-phase click
+  listener on `document.body`, shared by all platforms, that resolves
+  and caches the clicked chat's id/title (`currentTargetChat`) at the
+  moment the user opens the native menu, since the menu itself carries
+  no chat-id in its own markup. Resolution happens in two stages:
+  1. **Primary**: `target.closest(historySelector)` →
+     `target.closest(rowSelector)` → `extractChatIdFromRow()` — the
+     normal sidebar-row shape shared by all four platforms.
+  2. **Fallback**: if the primary lookup finds no chat id (the click
+     didn't originate from within the regular sidebar at all),
+     `resolveFallbackTargetChat(target)` is tried — a `protected
+     virtual` hook, default no-op, that lets a platform recognize an
+     alternate native DOM shape carrying chat rows elsewhere on the
+     page. See "Per-platform fallback" below.
 - Each adapter (`ChatGPTAdapter`, `ClaudeAdapter`, `DeepSeekAdapter`,
-  `GeminiAdapter`) only implements the platform-specific parts:
-  - `initClickListener()` — a capture-phase click listener on
-    `document.body` that caches the target chat's id/title
-    (`currentTargetChat`) at the moment the user opens the native
-    menu, since the menu itself carries no chat-id in its own markup.
+  `GeminiAdapter`) implements the remaining platform-specific parts:
   - `createMenuItem()` — finds the native menu's content container
     (`itemSelector`) and appends a cloned-style "Add to Folder" node,
     wiring `mouseenter`/`mouseleave` to open/close the first cascade
@@ -43,12 +58,11 @@ leaving the native menu.
   - `getChatInfo()` — resolves the final `{ id, title, url }` payload,
     preferring the cached `currentTargetChat` and falling back to
     parsing the current page's URL/DOM.
-- **`closeNativeMenu()`** (new, see Revision History) is a `protected
-  virtual` method on the base class that dismisses the *native*
-  platform menu once a folder has been picked — distinct from
-  `removeCascadeMenus()`, which only tears down our own injected
-  submenu. It exists because different platforms close their native
-  menus through fundamentally different mechanisms:
+- **`closeNativeMenu()`** is a `protected virtual` method on the base
+  class that dismisses the *native* platform menu once a folder has
+  been picked — distinct from `removeCascadeMenus()`, which only tears
+  down our own injected submenu. It exists because different platforms
+  close their native menus through fundamentally different mechanisms:
   - **Default (ChatGPT / Claude / DeepSeek)**: these use Radix-style
     dropdown menus, which dismiss via a document-level "was this
     interaction outside the menu" check. The base implementation
@@ -73,6 +87,25 @@ leaving the native menu.
     manual `cdk-overlay-container.innerHTML = ''` would skip, silently
     corrupting Angular's internal state for that menu instance.
 
+### Per-platform fallback
+- **ClaudeAdapter**: Claude's "Show more" expanded history view
+  replaces the main chat panel with a `<table data-cds="DataTable">`
+  listing recent chats, structurally unrelated to the sidebar — the
+  primary `historySelector`/`rowSelector` lookup never matches a click
+  there. `resolveFallbackTargetChat()` is overridden to:
+  1. Match the click against a row via
+     `#main-content table[data-cds="DataTable"] tr`.
+  2. Extract the chat id from that row's `a[href*="/chat/"]`, same as
+     the normal path (`cleanChatId()` on the last href segment).
+  3. Resolve the title from `row.querySelector('span.truncate')` —
+     **not** from the link element. Unlike sidebar rows, this table's
+     title text isn't inside the anchor at all; it lives in a sibling
+     `<span class="contents">` next to it, with the actual truncated
+     title in a nested `span.truncate`. Reusing `getRowTitle(linkEl)`
+     here would look in the wrong subtree and silently fall back to
+     `document.title`.
+  - Other three platforms don't override this hook and are unaffected.
+
 ### Interaction Logic
 - Hovering the injected "Add to Folder" item opens level 0 of the
   cascade, anchored to the item's bounding rect.
@@ -88,15 +121,20 @@ leaving the native menu.
   and calls `closeNativeMenu()` to close the native menu too.
 
 ### Files Involved
-- `src/adapters/LeftSidebar.ts` — `showLevelMenu`, `removeCascadeMenus`,
-  `removeSubMenus`, `startCloseTimer`/`clearCloseTimer`,
-  `closeNativeMenu` (default Escape-based implementation).
-- `src/adapters/ChatGPTAdapter.ts`, `ClaudeAdapter.ts`,
-  `DeepSeekAdapter.ts` — `itemSelector`, `initClickListener`,
-  `createMenuItem`, `getChatInfo` per platform; inherit the default
-  `closeNativeMenu()`.
-- `src/adapters/GeminiAdapter.ts` — same, plus a `closeNativeMenu()`
-  override that clicks `.cdk-overlay-backdrop` directly.
+- `src/adapters/LeftSidebar.ts` — `initClickListener`,
+  `resolveFallbackTargetChat` (default no-op), `showLevelMenu`,
+  `removeCascadeMenus`, `removeSubMenus`,
+  `startCloseTimer`/`clearCloseTimer`, `closeNativeMenu` (default
+  Escape-based implementation).
+- `src/adapters/ChatGPTAdapter.ts`, `DeepSeekAdapter.ts` —
+  `itemSelector`, `createMenuItem`, `getChatInfo` per platform; inherit
+  the default `closeNativeMenu()` and `resolveFallbackTargetChat()`.
+- `src/adapters/ClaudeAdapter.ts` — same, plus a
+  `resolveFallbackTargetChat()` override for the expanded history
+  table; inherits the default `closeNativeMenu()`.
+- `src/adapters/GeminiAdapter.ts` — same as ChatGPT/DeepSeek, plus a
+  `closeNativeMenu()` override that clicks `.cdk-overlay-backdrop`
+  directly.
 
 ## Known Limitations
 - `closeNativeMenu()`'s default (Escape-based) path assumes the native
@@ -110,12 +148,19 @@ leaving the native menu.
   native HTML Popover API), the `.cdk-overlay-backdrop` selector would
   stop matching and `closeNativeMenu()` would silently fall through to
   the base Escape behavior, which may or may not close it.
+- Claude's `resolveFallbackTargetChat()` is keyed to the current
+  `#main-content table[data-cds="DataTable"]` markup of the expanded
+  "Show more" view. If Claude changes that view's structure again, the
+  fallback would silently stop matching and "Add to Folder" would once
+  more fail to inject there — the same class of risk the primary
+  sidebar lookup already has, just for a second DOM shape.
 
 ## Revision History
 | Date | Commit | Description |
 |------|--------|--------------|
 | — | — | Initial implementation (predates this document): native "Add to Folder" menu item injection and cascading folder submenu, across all four platforms. |
 | 2026-07-28 | `<commit-hash>` | Fixed the native platform menu staying open after picking a folder. Added a virtual `closeNativeMenu()`; default dispatches a real `Escape` keydown on `document.body` (Radix-style platforms). Gemini overrides it to click the real `.cdk-overlay-backdrop` element instead, since its Angular CDK Overlay menu only dismisses via that physical element being the click's actual target — a synthetic event elsewhere in the document never reached it. |
+| 2026-08-07 | `<commit-hash>` | Fixed "Add to Folder" failing to inject in Claude's expanded "Show more" history table. Moved `initClickListener()`'s chat-id resolution to a two-stage lookup: primary sidebar-shape lookup, then a new `protected virtual resolveFallbackTargetChat()` hook (default no-op) for platforms with an alternate native DOM shape. ClaudeAdapter overrides it to recognize the `<table data-cds="DataTable">` rows in that view and pull the title from a sibling `span.truncate` rather than the anchor itself. |
 
 ## TODO
 - [ ] None currently.
