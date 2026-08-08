@@ -1,8 +1,12 @@
 {
   "optionsTitle": { "message": "AIChatFolders 设置" },
-  "optionsSubTitle": { "message": "管理各平台的同步偏好与数据备份" },
+  "optionsSubTitle": { "message": "管理各平台的开启状态、同步偏好与数据备份" },
+  "sectionEnableTitle": { "message": "启用平台" },
+  "enableDesc": { "message": "选择要在哪些 AI 平台上运行 AIChatFolders 插件。" },
   "sectionSyncTitle": { "message": "聊天记录同步设定" },
   "syncDesc": { "message": "在原生侧边栏重命名或删除对话时，自动同步修改本地文件夹中的记录" },
+  "collapseText": { "message": "点击收起" },
+  "expandText": { "message": "点击展开" },
   "sectionDataTitle": { "message": "数据管理" },
   "exportConfig": { "message": "导出 JSON" },
   "importConfig": { "message": "导入 JSON" },

@@ -19,6 +19,12 @@ Currently supports ChatGPT, Gemini, Claude, DeepSeek, and more coming soon.
 - 💾 Local storage only — your data never leaves your browser
 - 🌙 Works with dark mode
 - 🖱️ Drag & drop folders and chats
+- 👤 Folders are kept separate per logged-in account, on platforms that support multiple accounts
+- 🔄 Renaming or deleting a chat in the native sidebar automatically updates it in your folders too
+- 🙈 Optionally hide chats from the native sidebar once they're saved into a folder, to cut down on clutter
+- ⚙️ A settings page to enable/disable the extension per platform and configure sync behavior
+- 📤 Export and import your entire folder structure as a JSON file
+- 🌐 Available in English, Japanese, and Chinese
 
 ---
 
@@ -82,6 +88,18 @@ Then load the extension in Chrome using **Developer Mode**.
 
 ---
 
+## Settings
+
+Open the extension's options page to:
+
+- Enable or disable AI Chat Folders on a per-platform basis
+- Turn on/off automatic syncing when a chat is renamed or deleted in a platform's native sidebar
+- Export your folders to a JSON file, or import a previous backup
+
+Each settings section can be collapsed/expanded from the options page.
+
+---
+
 ## Screenshots
 
 Coming soon.
@@ -97,12 +115,15 @@ Coming soon.
 - [x] Claude support
 - [x] DeepSeek support
 - [x] Folder management
+- [x] Settings page (per-platform enable/disable, sync toggle)
+- [x] Hide native sidebar entries already saved to a folder
+- [x] Auto-sync native renames/deletions into local folders
 
 ### Phase 2 — Better Organization
 
-- [ ] Export / Import
-- [ ] Separate folders for each AI account
-- [ ] Folder backup
+- [x] Export / Import
+- [x] Separate folders for each AI account
+- [ ] Folder-level backup scheduling (e.g. periodic auto-export)
 
 ### Phase 3 — Ecosystem
 
@@ -118,6 +139,8 @@ AI Chat Folders **does not store or back up your conversations**.
 The extension only stores folder information and the relationship between folders and conversations.
 
 If you delete a conversation from ChatGPT, Gemini, Claude, or DeepSeek, it is permanently removed from the platform and will also disappear from AI Chat Folders.
+
+If the native sync setting is enabled (default: on), renaming or deleting a chat directly on the platform's own sidebar will also update or remove it inside AI Chat Folders automatically — you don't need to manage both places separately. You can turn this off from the settings page if you'd rather manage folders independently from the native sidebar.
 
 Think of AI Chat Folders as a file manager—it organizes your conversations, but it does not own or copy them.
 

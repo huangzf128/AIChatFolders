@@ -63,15 +63,18 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
  * LeftSidebarAdapter.getResolvedAccountKey().
  */
 export interface DomainSettings {
-  /**
-   * Whether native platform changes detected via network interception /
-   * DOM signals (currently: delete; planned: rename) should also be
-   * applied to the corresponding entries in local folders.
-   */
-  syncNativeChanges: boolean;
+	/** Whether the plugin is enabled on this specific domain. */
+  	enabled: boolean;	
+	/**
+	 * Whether native platform changes detected via network interception /
+	 * DOM signals (currently: delete; planned: rename) should also be
+	 * applied to the corresponding entries in local folders.
+	 */
+	syncNativeChanges: boolean;
 }
 export const DEFAULT_DOMAIN_SETTINGS: DomainSettings = {
-  syncNativeChanges: true,
+	enabled: true,
+  	syncNativeChanges: true,
 };
 
 /** Full shape persisted under a single per-account chrome.storage.local key. */

@@ -20,6 +20,13 @@ async function initializeApp() {
     const adapter = getAdapter();
 	if (!adapter) return;
 
+	// Check whether the plugin is enabled for this target platform
+	const domainSettings = await FolderManager.getDomainSettings(adapter.platformId);
+	if (!domainSettings.enabled) {
+		console.log(`[AIChatFolders] Extension disabled for platform: ${adapter.platformId}`);
+		return;
+	}
+
 	// Check user login status and get User ID
 	const userId = await adapter.getAccountKey();
 	if (!userId) {

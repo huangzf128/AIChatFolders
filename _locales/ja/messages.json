@@ -1,8 +1,12 @@
 {
   "optionsTitle": { "message": "AIChatFolders 設定" },
-  "optionsSubTitle": { "message": "各プラットフォームの同期設定とデータバックアップを管理" },
+  "optionsSubTitle": { "message": "各プラットフォームの有効化、同期設定、データバックアップを管理" },
+  "sectionEnableTitle": { "message": "有効なプラットフォーム" },
+  "enableDesc": { "message": "AIChatFolders 拡張機能を使用する AI プラットフォームを選択します。" },
   "sectionSyncTitle": { "message": "チャット同期設定" },
   "syncDesc": { "message": "ネイティブサイドバーでチャットの名前変更や削除が行われた際に、ローカルフォルダの記録を自動的に同期します" },
+  "collapseText": { "message": "クリックして折りたたむ" },
+  "expandText": { "message": "クリックして展開" },
   "sectionDataTitle": { "message": "データ管理" },
   "exportConfig": { "message": "JSONをエクスポート" },
   "importConfig": { "message": "JSONをインポート" },

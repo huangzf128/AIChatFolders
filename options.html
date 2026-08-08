@@ -16,7 +16,7 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
+
     body {
       background-color: var(--bg-main);
       color: var(--text-main);
@@ -27,7 +27,7 @@
     }
 
     .container { width: 100%; max-width: 640px; }
-    
+
     header { margin-bottom: 28px; }
     header h1 { font-size: 20px; font-weight: 600; }
     header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
@@ -63,13 +63,13 @@
     }
 
     .setting-row:last-child { border-bottom: none; }
-    
+
     .platform-name {
       font-size: 14px;
       font-weight: 500;
     }
 
-    /* Switch 控件 */
+    /* Switch Component Styles */
     .switch {
       position: relative;
       display: inline-block;
@@ -103,6 +103,83 @@
     input:checked + .slider { background-color: var(--primary); }
     input:checked + .slider:before { transform: translateX(20px); }
 
+    /* Collapsible Styles */
+    .collapsible-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      padding: 8px;
+      margin: -8px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    /* Even at rest, hint that this row is interactive (not just on hover) */
+    .collapsible-header:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-color);
+    }
+
+    .collapse-toggle-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background-color: #334155;
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .collapsible-header:hover .collapse-toggle-hint {
+      background-color: #475569;
+      border-color: #64748b;
+    }
+
+    .toggle-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .collapsible-header:hover .toggle-text {
+      color: var(--text-main);
+    }
+
+    /* Arrow always tinted with the primary color so it reads as a
+       control at a glance, not just decorative text. */
+    .arrow-icon {
+      font-size: 12px;
+      color: var(--primary);
+      transition: transform 0.25s ease;
+    }
+
+    /* Convention: pointing down = expanded, pointing right = collapsed */
+    .collapsible-header.open .arrow-icon {
+      transform: rotate(0deg);
+    }
+
+    .collapsible-header:not(.open) .arrow-icon {
+      transform: rotate(-90deg);
+    }
+
+    .collapsible-content {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height 0.3s ease, opacity 0.2s ease, margin-top 0.2s ease;
+    }
+
+    .collapsible-content.open {
+      max-height: 500px;
+      opacity: 1;
+      margin-top: 16px;
+    }
+
     .btn {
       background-color: #334155;
       color: white;
@@ -117,96 +194,152 @@
 
     .btn:hover { background-color: #475569; }
 
-	.toast {
-		position: fixed;
-		top: 50%;
-		left: 50%;
-		z-index: 9999;
-		
-		/* Flexbox for icon alignment */
-		display: flex;
-		align-items: center;
-		gap: 8px;
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      background-color: #059669;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(16, 185, 129, 0.3);
+      opacity: 0;
+      transform: translateY(16px) scale(0.95);
+      transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
 
-		/* Size & Spacing Updates */
-		padding: 12px 20px;
-		border-radius: 8px;
-		font-size: 14px;
-		font-weight: 600;
-		
-		/* Modern Styling */
-		background-color: #059669; /* Slightly deeper green for contrast */
-		color: #ffffff;
-		border: 1px solid rgba(255, 255, 255, 0.15);
-		box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(16, 185, 129, 0.3);
-
-		/* Animation */
-		opacity: 0;
-		transform: translateY(16px) scale(0.95);
-		transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-		pointer-events: none;
-	}
-
-	.toast.show {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-	  <img src="icons/icon48.png" alt="logo">
+      <img src="icons/icon48.png" alt="logo">
       <h1 data-i18n="optionsTitle">AIChatFolders Settings</h1>
-      <p data-i18n="optionsSubTitle">Manage platform sync preferences and data backup</p>
+      <p data-i18n="optionsSubTitle">Manage platform preferences, sync settings, and data backup</p>
     </header>
 
+    <!-- Enabled Platforms Section (collapsible, open by default) -->
     <div class="section">
-      <div class="section-title" data-i18n="sectionSyncTitle">Chat Sync Settings</div>
-      <div class="section-desc" data-i18n="syncDesc">Automatically sync local folder records when chats are renamed or deleted in native sidebar</div>
-      
-      <!-- Gemini -->
-      <div class="setting-row">
-        <span class="platform-name">Google Gemini</span>
-        <label class="switch">
-          <input type="checkbox" id="sync_gemini">
-          <span class="slider"></span>
-        </label>
+      <div class="collapsible-header open" data-target="enableContent">
+        <div>
+          <div class="section-title" style="margin-bottom: 4px;" data-i18n="sectionEnableTitle">Enabled Platforms</div>
+          <div class="section-desc" style="margin-bottom: 0;" data-i18n="enableDesc">Choose which AI platforms will run the AIChatFolders extension.</div>
+        </div>
+
+        <div class="collapse-toggle-hint">
+          <span class="toggle-text" data-i18n="collapseText">Click to collapse</span>
+          <span class="arrow-icon">&#9662;</span>
+        </div>
       </div>
 
-      <!-- ChatGPT -->
-      <div class="setting-row">
-        <span class="platform-name">ChatGPT</span>
-        <label class="switch">
-          <input type="checkbox" id="sync_chatgpt">
-          <span class="slider"></span>
-        </label>
-      </div>
+      <div class="collapsible-content open" id="enableContent">
+        <!-- Gemini Enable -->
+        <div class="setting-row">
+          <span class="platform-name">Google Gemini</span>
+          <label class="switch">
+            <input type="checkbox" id="enable_gemini">
+            <span class="slider"></span>
+          </label>
+        </div>
 
-      <!-- Claude -->
-      <div class="setting-row">
-        <span class="platform-name">Claude</span>
-        <label class="switch">
-          <input type="checkbox" id="sync_claude">
-          <span class="slider"></span>
-        </label>
-      </div>
+        <!-- ChatGPT Enable -->
+        <div class="setting-row">
+          <span class="platform-name">ChatGPT</span>
+          <label class="switch">
+            <input type="checkbox" id="enable_chatgpt">
+            <span class="slider"></span>
+          </label>
+        </div>
 
-      <!-- DeepSeek -->
-      <div class="setting-row">
-        <span class="platform-name">DeepSeek</span>
-        <label class="switch">
-          <input type="checkbox" id="sync_deepseek">
-          <span class="slider"></span>
-        </label>
+        <!-- Claude Enable -->
+        <div class="setting-row">
+          <span class="platform-name">Claude</span>
+          <label class="switch">
+            <input type="checkbox" id="enable_claude">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- DeepSeek Enable -->
+        <div class="setting-row">
+          <span class="platform-name">DeepSeek</span>
+          <label class="switch">
+            <input type="checkbox" id="enable_deepseek">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 
-    <!-- 2. settings (export/import) -->
+    <!-- Chat Sync Settings (collapsible, open by default) -->
+    <div class="section">
+      <div class="collapsible-header open" data-target="syncContent">
+        <div>
+          <div class="section-title" style="margin-bottom: 4px;" data-i18n="sectionSyncTitle">Chat Sync Settings</div>
+          <div class="section-desc" style="margin-bottom: 0;" data-i18n="syncDesc">Automatically sync local folder records when chats are renamed or deleted in native sidebar</div>
+        </div>
+
+        <div class="collapse-toggle-hint">
+          <span class="toggle-text" data-i18n="collapseText">Click to collapse</span>
+          <span class="arrow-icon">&#9662;</span>
+        </div>
+      </div>
+
+      <div class="collapsible-content open" id="syncContent">
+        <!-- Gemini Sync -->
+        <div class="setting-row">
+          <span class="platform-name">Google Gemini</span>
+          <label class="switch">
+            <input type="checkbox" id="sync_gemini">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- ChatGPT Sync -->
+        <div class="setting-row">
+          <span class="platform-name">ChatGPT</span>
+          <label class="switch">
+            <input type="checkbox" id="sync_chatgpt">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Claude Sync -->
+        <div class="setting-row">
+          <span class="platform-name">Claude</span>
+          <label class="switch">
+            <input type="checkbox" id="sync_claude">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- DeepSeek Sync -->
+        <div class="setting-row">
+          <span class="platform-name">DeepSeek</span>
+          <label class="switch">
+            <input type="checkbox" id="sync_deepseek">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Management (Export/Import) — not collapsible, short enough as-is -->
     <div class="section">
       <div class="section-title" data-i18n="sectionDataTitle">Data Management</div>
-      
+
       <div class="setting-row">
         <div>
           <div class="platform-name" data-i18n="exportConfig">Export JSON</div>
@@ -226,13 +359,9 @@
     </div>
   </div>
 
-	
-	<div id="toast" class="toast">
-	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-		<polyline points="20 6 9 17 4 12"></polyline>
-	</svg>
-	<span id="toastMessage" data-i18n="saved">Saved!</span>
-	</div>
+  <div id="toast" class="toast">
+    <span id="toastMessage" data-i18n="saved">Saved!</span>
+  </div>
 
   <script src="./options.js"></script>
 </body>

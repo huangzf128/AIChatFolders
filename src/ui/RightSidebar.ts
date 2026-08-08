@@ -57,6 +57,7 @@ export class RightSidebar {
 
 		this.AccountSettings = await FolderManager.getAccountSettings();
 		this.domainSettings  = await FolderManager.getDomainSettings();
+		this.watchDomainSettingsChanges();
 		this.updateHideToggleUI();
 
         await this.refresh();
@@ -67,6 +68,25 @@ export class RightSidebar {
 		this.startObservingNativeSidebar();
 		this.applyHideToAllRows(); // handle whatever native rows are already in the DOM right now		
     }
+
+	/**
+	 * Keeps the in-memory domainSettings cache in sync with chrome.storage,
+	 * so toggles changed on the options page (e.g. syncNativeChanges) take
+	 * effect immediately on already-open tabs, without a page refresh.
+	 */
+	private watchDomainSettingsChanges(): void {
+		if (!this.adapter) return;
+		const domainKey = FolderManager.getDomainStorageKey(this.adapter.platformId);
+
+		chrome.storage.onChanged.addListener((changes, areaName) => {
+			if (areaName !== 'local') return;
+			const change = changes[domainKey];
+			if (!change) return;
+
+			this.domainSettings = { ...DEFAULT_DOMAIN_SETTINGS, ...(change.newValue || {}) };
+			console.log('[AIChatFolders] Domain settings updated live:', this.domainSettings);
+		});
+	}
 
 	/**
      * Injects custom standalone utility styling rules into the current runtime document environment head.

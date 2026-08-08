@@ -55,7 +55,7 @@ export class FolderManager {
 	 * adapter instance (e.g. the options page) can still resolve the key.
 	 * @private
 	 */
-	private static getDomainStorageKey(platformId?: string): string {
+	static getDomainStorageKey(platformId?: string): string {
 		const id = platformId ?? this.adapter?.platformId;
 		if (!id) {
 			throw new Error('FolderManager: platformId is required to resolve the domain storage key.');

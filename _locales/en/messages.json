@@ -1,8 +1,12 @@
 {
   "optionsTitle": { "message": "AIChatFolders Settings" },
-  "optionsSubTitle": { "message": "Manage platform sync preferences and data backup" },
+  "optionsSubTitle": { "message": "Manage platform preferences, sync settings, and data backup" },
+  "sectionEnableTitle": { "message": "Enabled Platforms" },
+  "enableDesc": { "message": "Choose which AI platforms will run the AIChatFolders extension." },
   "sectionSyncTitle": { "message": "Chat Sync Settings" },
   "syncDesc": { "message": "Automatically sync local folder records when chats are renamed or deleted in native sidebar" },
+  "collapseText": { "message": "Click to collapse" },
+  "expandText": { "message": "Click to expand" },
   "sectionDataTitle": { "message": "Data Management" },
   "exportConfig": { "message": "Export JSON" },
   "importConfig": { "message": "Import JSON" },
