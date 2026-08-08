@@ -1,0 +1,76 @@
+name: Build and Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies & build zip
+        run: |
+          npm ci
+          npm run build:zip
+
+      # Extract the section for this version from CHANGELOG.md, so the
+      # GitHub release body matches what's already documented there,
+      # instead of being auto-generated from raw commit subjects.
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          awk -v ver="$VERSION" '
+            BEGIN { found=0 }
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") { found=1; next }
+            }
+            found { print }
+          ' CHANGELOG.md > release_notes.md
+
+          echo "Extracted section for version $VERSION:"
+          cat release_notes.md
+
+          # Fallback: if nothing matched the tag version (e.g. you forgot
+          # to rename [Unreleased] to [x.y.z] before tagging), grab the
+          # Unreleased section instead of shipping an empty release body.
+          if [ ! -s release_notes.md ]; then
+            echo "No section for [$VERSION] found, falling back to [Unreleased]"
+            awk '
+              BEGIN { found=0 }
+              /^## \[/ {
+                if (found) exit
+                if ($0 ~ /\[Unreleased\]/) { found=1; next }
+              }
+              found { print }
+            ' CHANGELOG.md > release_notes.md
+          fi
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: extension.zip
+          name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

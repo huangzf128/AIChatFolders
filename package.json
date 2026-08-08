@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "rollup -c -w",
     "build": "rollup -c",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+	"package": "npm run build && bestzip AIChatFolders-v1.0.0.zip dist/*"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +18,7 @@
     "@rollup/plugin-typescript": "^12.3.0",
     "@types/chrome": "^0.1.40",
     "@types/node": "^25.6.0",
+    "bestzip": "^3.0.2",
     "rollup": "^4.62.4",
     "rollup-plugin-copy": "^3.5.0",
     "tslib": "^2.8.1",
