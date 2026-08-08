@@ -37,6 +37,18 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
 
+          CHANGELOG_PATH="docs/CHANGELOG.md"
+
+          # Guard: don't hard-fail the whole release if the changelog is
+          # missing from this commit (e.g. the tag was created before the
+          # CHANGELOG update was committed/pushed). Fall back to an empty
+          # body_path instead, so the release still gets created.
+          if [ ! -f "$CHANGELOG_PATH" ]; then
+            echo "$CHANGELOG_PATH not found at this commit, skipping extraction"
+            touch release_notes.md
+            exit 0
+          fi
+
           awk -v ver="$VERSION" '
             BEGIN { found=0 }
             /^## \[/ {
@@ -44,7 +56,7 @@ jobs:
               if ($0 ~ "\\[" ver "\\]") { found=1; next }
             }
             found { print }
-          ' CHANGELOG.md > release_notes.md
+          ' "$CHANGELOG_PATH" > release_notes.md
 
           echo "Extracted section for version $VERSION:"
           cat release_notes.md
@@ -61,7 +73,7 @@ jobs:
                 if ($0 ~ /\[Unreleased\]/) { found=1; next }
               }
               found { print }
-            ' CHANGELOG.md > release_notes.md
+            ' "$CHANGELOG_PATH" > release_notes.md
           fi
 
       - name: Create Release and Upload Asset
