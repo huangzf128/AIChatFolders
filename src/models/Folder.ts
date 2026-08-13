@@ -4,35 +4,23 @@
  */
 
 /**
- * Represents an individual chat session telemetry mapped from the AI platform.
- */
-export interface ChatItem {
-    id: string;
-    title: string;
-    url: string;
-}
-
-/**
  * Core interface representing a node within the unified hierarchical tree.
  * A node can functionally act as a container (folder) or a leaf node (chat shortcut).
  */
 export interface FolderData {
-    /** Unique identifier for the folder or chat node */
+    /** Unique identifier. For folders: a short auto-incremented number (as string).
+     * For chat leaves: the platform's native chat id, unrelated to the counter. */
     id: string;
     /** Display name of the folder or the title of the chat session */
     name: string;
-    /** UI state flag indicating whether the folder's view expanded or collapsed */
     isCollapsed?: boolean;
-    /** Hex color code or class token for theme custom styling */
-    color: string;
-    /** ID of the parent container; explicitly `null` for root-level entries */
+    /** Numeric color code — resolve to an actual hex value via resolveColor().
+     * Unused (kept as a placeholder) for chat leaves, which never render a color. */
+    color: number;
+    /** Derived at load time from tree position — never persisted directly.
+     * See FolderManager.hydrate()/dehydrate(). */	
     parentId: string | null;
-    /** Recursive list of subfolders or embedded chat leaves nested under this node */
     children: FolderData[];
-    /** Legacy array for flat chat items; prefer pushing nested nodes into 'children' with 'isChat' set to true */
-    items: ChatItem[];
-
-    /** Discriminator flag; true if this node is a stylized chat leaf rather than an abstract folder */
     isChat?: boolean;
 }
 
@@ -48,11 +36,11 @@ export type NativeChangeType = 'delete' | 'rename';
  * writable once an account is known (e.g. from the right sidebar).
  */
 export interface AccountSettings {
-  /** Whether chats already saved to a folder should be hidden from the native sidebar. */
-  hideChat: boolean;
+	/** Whether chats already saved to a folder should be hidden from the native sidebar. */
+	hideChat: boolean;
 }
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
-  hideChat: false,
+  	hideChat: false,
 };
 
 /**
@@ -77,8 +65,60 @@ export const DEFAULT_DOMAIN_SETTINGS: DomainSettings = {
   	syncNativeChanges: true,
 };
 
+/**
+ * Compact numeric platform codes, used to keep the shared { td, snc } setting
+ * item small. Part of the storage schema — NEVER renumber or reuse an
+ * existing code; only append new platforms at the end.
+ */
+export const PLATFORM_CODES: Record<string, number> = {
+	gemini: 1,
+	chatgpt: 2,
+	claude: 3,
+	deepseek: 4,
+};
+
+/**
+ * Unified global setting covering every platform in one small item:
+ * - td  (targetDomain): platform codes where the extension is enabled
+ * - snc (syncNativeChanges): platform codes with native-change sync enabled
+ * Stored as a single chrome.storage.sync item so it stays small enough to
+ * roam across the user's devices.
+ */
+export interface GlobalSetting {
+	td: number[];
+	snc: number[];
+}
+export const DEFAULT_GLOBAL_SETTING: GlobalSetting = {
+	td: Object.values(PLATFORM_CODES),
+	snc: Object.values(PLATFORM_CODES),
+};
+
+/**
+ * Preset folder colors. Only the numeric code is persisted in storage; the
+ * actual hex value is resolved from this table at render time. Same
+ * append-only rule as PLATFORM_CODES — never renumber or reuse a code.
+ */
+export const COLOR_TABLE: Record<number, string> = {
+	1: '#3498db',
+	2: '#2ecc71',
+	3: '#f1c40f',
+	4: '#e74c3c',
+	5: '#9b59b6',
+	6: '#f39c12',
+	7: '#8e44ad',
+	8: '#fd79a8',
+};
+export const DEFAULT_COLOR_CODE = 1;
+
+/** Resolves a stored color code to its display hex value, falling back to the default. */
+export function resolveColor(code: number): string {
+  	return COLOR_TABLE[code] ?? COLOR_TABLE[DEFAULT_COLOR_CODE]!;
+}
+
 /** Full shape persisted under a single per-account chrome.storage.local key. */
 export interface StorageSchema {
-  folders: FolderData[];
-  settings: AccountSettings;
+	folders: FolderData[];
+	settings: AccountSettings;
+	/** Auto-increment counter used to assign short numeric folder ids. */
+	nextId: number;
 }

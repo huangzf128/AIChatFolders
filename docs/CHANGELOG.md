@@ -11,10 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 -
 
 ### Changed
--
+- Optimized local storage layout: shorter folder ids, numeric color
+  codes, byte-based name limits, a more compact on-disk tree shape, and
+  a single merged global setting (`enabled`/`syncNativeChanges`) synced
+  across devices via chrome.storage.sync.
 
 ### Fixed
--
+- Fixed the folder editor's color picker and name input overflowing the
+  panel on Gemini and DeepSeek, caused by injected UI relying on the
+  host page's own CSS reset.
+  
 
 ## [1.0.0] - 2026-08-08
 

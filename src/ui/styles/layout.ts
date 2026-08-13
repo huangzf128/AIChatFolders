@@ -2,6 +2,20 @@
  * Main Layout Components
  */
 export const LayoutStyles = `
+
+    /* Explicit box-sizing reset scoped to our own injected UI, so we never
+       depend on the host page's global CSS reset (e.g. Tailwind preflight
+       on ChatGPT/Claude) to render correctly. Without this, platforms that
+       don't ship such a reset (Gemini, DeepSeek) fall back to the browser's
+       default content-box, which silently inflates bordered/padded elements
+       beyond their intended size. */
+    .aichat-panel, .aichat-panel *, .aichat-panel *::before, .aichat-panel *::after,
+    .aichat-cascade-menu, .aichat-cascade-menu *, .aichat-cascade-menu *::before, .aichat-cascade-menu *::after,
+    .aichat-confirm-overlay, .aichat-confirm-overlay *, .aichat-confirm-overlay *::before, .aichat-confirm-overlay *::after,
+    .aichat-dock-trigger {
+        box-sizing: border-box;
+    }
+
     .aichat-panel {
         position: fixed;
         right: -320px;

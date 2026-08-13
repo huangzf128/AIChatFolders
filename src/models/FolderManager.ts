@@ -3,12 +3,65 @@
  * @description Handles data persistence and tree-structure CRUD operations 
  * for folders and chat items using chrome.storage.local.
  */
-import type { FolderData, StorageSchema, DomainSettings, AccountSettings } from './Folder';
-import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS } from './Folder';
+import type { FolderData, StorageSchema, DomainSettings, AccountSettings, GlobalSetting } from './Folder';
+import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS, DEFAULT_GLOBAL_SETTING, DEFAULT_COLOR_CODE, PLATFORM_CODES } from './Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
 
-const MAX_FOLDER_NAME_LENGTH = 40;
-const MAX_CHAT_NAME_LENGTH = 80;
+const MAX_FOLDER_NAME_BYTES = 60;
+const MAX_CHAT_NAME_BYTES = 90;
+
+/** Chat-leaf nodes never render a color; this is just a neutral placeholder. */
+const CHAT_LEAF_COLOR_CODE = 0;
+
+/**
+ * Truncates a string to at most `maxBytes` when encoded as UTF-8, without
+ * splitting a multi-byte character in half. Plain `.slice(0, n)` truncates
+ * by UTF-16 code unit, which silently allows far more storage bytes for
+ * CJK/emoji text (up to 4 bytes/char) than for ASCII.
+ */
+function truncateUtf8Bytes(str: string, maxBytes: number): string {
+    const encoded = new TextEncoder().encode(str);
+    if (encoded.length <= maxBytes) return str;
+
+    let end = maxBytes;
+    // UTF-8 continuation bytes look like 10xxxxxx (0x80-0xBF) — back off
+    // until we land on the start of a character, not mid-character.
+    while (end > 0 && (encoded[end]! & 0xc0) === 0x80) {
+        end--;
+    }
+    return new TextDecoder('utf-8').decode(encoded.slice(0, end));
+}
+
+/** Adds or removes a numeric code from a sorted, de-duplicated code list. */
+function withCode(codes: number[], code: number, include: boolean): number[] {
+    const set = new Set(codes);
+    if (include) set.add(code);
+    else set.delete(code);
+    return Array.from(set).sort((a, b) => a - b);
+}
+
+/**
+ * Compact on-disk shape actually written to chrome.storage.local.
+ * - Keys are abbreviated (id/nm/cl/ch/cd/isC) since this shape repeats
+ *   once per node and dominates the item's serialized size.
+ * - parentId is NOT stored — it's fully redundant given the children-based
+ *   tree, and is reconstructed on load instead (see hydrate()).
+ * - Any field left at its default (false / empty array / not-a-chat-leaf's
+ *   irrelevant color) is omitted rather than written explicitly.
+ */
+interface StoredNode {
+    id: string;
+    nm: string;
+    /** Color code. Omitted for chat leaves, which never render a color. */
+    cl?: number;
+    /** Children. Omitted when empty (covers both chat leaves, which never
+     * have any, and folders that happen to be empty). */
+    ch?: StoredNode[];
+    /** isCollapsed. Only written when true (the non-default state). */
+    cd?: 1;
+    /** isChat. Only written when true (the non-default state — absence means folder). */
+    isC?: 1;
+}
 
 /**
  * Manager class responsible for handling storage, retrieval, modification,
@@ -26,6 +79,30 @@ export class FolderManager {
      */
     static init(adapter: LeftSidebarAdapter): void {
         this.adapter = adapter;
+    }
+
+    // ── Storage area abstraction ──────────────────────────────────────────
+    // chrome.storage.local and chrome.storage.sync expose the exact same
+    // callback-based API shape, so this one pair of helpers covers both —
+    // no separate code paths needed per storage backend.
+
+    private static storageArea(area: 'local' | 'sync'): chrome.storage.StorageArea {
+        return area === 'sync' ? chrome.storage.sync : chrome.storage.local;
+    }
+
+    private static storageGet<T = any>(area: 'local' | 'sync', keys: string[]): Promise<Record<string, T>> {
+        return new Promise((resolve) => {
+            this.storageArea(area).get(keys, (result) => resolve(result as Record<string, T>));
+        });
+    }
+
+    private static storageSet(area: 'local' | 'sync', data: Record<string, any>): Promise<void> {
+        return new Promise((resolve, reject) => {
+            this.storageArea(area).set(data, () => {
+                if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+                else resolve();
+            });
+        });
     }
 
 	/**
@@ -46,52 +123,43 @@ export class FolderManager {
 		return `${this.STORAGE_KEY_PREFIX}_${this.adapter.platformId}_${sanitizedUserId}`;
 	}
 
-	/**
-	 * Domain-only key: DomainSettings. Deliberately never touches
-	 * getResolvedAccountKey(), so it stays readable/writable from the
-	 * settings page even when no account is logged in yet.
-	 *
-	 * Accepts an optional explicit platformId so callers without a full
-	 * adapter instance (e.g. the options page) can still resolve the key.
-	 * @private
-	 */
-	static getDomainStorageKey(platformId?: string): string {
-		const id = platformId ?? this.adapter?.platformId;
-		if (!id) {
-			throw new Error('FolderManager: platformId is required to resolve the domain storage key.');
-		}
-		// Renamed from `acf_domain_${id}` to `acf_${id}` — a domain key never
-		// collides with an account key, since account keys always carry a
-		// trailing userId segment (`acf_${platformId}_${userId}`).
-		return `${this.STORAGE_KEY_PREFIX}_${id}`;
-	}
+    /** Single shared key for the unified { td, snc } global setting (chrome.storage.sync). */
+    private static readonly GLOBAL_SETTING_KEY = `${this.STORAGE_KEY_PREFIX}_setting`;
 
+    static getGlobalSettingStorageKey(): string {
+        return this.GLOBAL_SETTING_KEY;
+    }
+	
+    static getPlatformCode(platformId: string): number | undefined {
+        return PLATFORM_CODES[platformId];
+    }
+	
 	/**
-	 * Reads the full { folders, settings } object for the current key.
-	 * Also normalizes the legacy format, where the key used to hold a plain
-	 * FolderData[] array directly (before settings were introduced).
+	 * Reads this account's { folders, settings, nextId } bundle from
+	 * chrome.storage.local, under the per-account key returned by
+	 * getAccountStorageKey() (acf_{platform}_{userId}).
+	 * Missing fields are backfilled with defaults, so callers never need to
+	 * null-check the result.
 	 */
 	private static async getStorageData(): Promise<StorageSchema> {
 		const key = this.getAccountStorageKey();
-		return new Promise((resolve) => {
-			chrome.storage.local.get([key], (result) => {
-				const raw = result[key];
-				const data = (raw as Partial<StorageSchema>) || {};
-				resolve({
-					folders: data.folders || [],
-					settings: { ...DEFAULT_ACCOUNT_SETTINGS, ...(data.settings || {}) },
-				});
-			});
-		});
+		const result = await this.storageGet<{ f?: StoredNode[]; settings?: AccountSettings; nextId?: number }>('local', [key]);
+		const data = result[key] || {};
+		return {
+			folders: this.hydrate(data.f, null),
+			settings: { ...DEFAULT_ACCOUNT_SETTINGS, ...(data.settings || {}) },
+			nextId: data.nextId ?? 1,
+		};
 	}
 
 	private static async saveStorageData(data: StorageSchema): Promise<void> {
 		const key = this.getAccountStorageKey();
-		return new Promise((resolve, reject) => {
-			chrome.storage.local.set({ [key]: data }, () => {
-				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-				else resolve();
-			});
+		await this.storageSet('local', {
+			[key]: {
+				f: this.dehydrate(data.folders),
+				settings: data.settings,
+				nextId: data.nextId,
+			}
 		});
 	}
 
@@ -108,27 +176,95 @@ export class FolderManager {
 		return data.settings;
 	}
 
-	// ── Domain-scoped: settings-page toggles (e.g. syncNativeChanges) ────
-	static async getDomainSettings(platformId?: string): Promise<DomainSettings> {
-		const key = this.getDomainStorageKey(platformId);
-		return new Promise((resolve) => {
-			chrome.storage.local.get([key], (result) => {
-				resolve({ ...DEFAULT_DOMAIN_SETTINGS, ...(result[key] || {}) });
-			});
+    // ── Global setting: one shared { td, snc } item across ALL platforms ───
+    static async getGlobalSetting(): Promise<GlobalSetting> {
+        const result = await this.storageGet<GlobalSetting>('sync', [this.GLOBAL_SETTING_KEY]);
+        const raw = result[this.GLOBAL_SETTING_KEY];
+        return {
+            td: raw?.td ?? DEFAULT_GLOBAL_SETTING.td,
+            snc: raw?.snc ?? DEFAULT_GLOBAL_SETTING.snc,
+        };
+    }
+
+    static async updateGlobalSetting(mutate: (current: GlobalSetting) => GlobalSetting): Promise<GlobalSetting> {
+        const current = await this.getGlobalSetting();
+        const updated = mutate(current);
+        await this.storageSet('sync', { [this.GLOBAL_SETTING_KEY]: updated });
+        return updated;
+    }
+
+    // ── Per-platform view over the global setting. Kept so existing callers
+    // (options page, RightSidebar) don't need to know about td/snc codes. ──
+    static async getDomainSettings(platformId?: string): Promise<DomainSettings> {
+        const id = platformId ?? this.adapter?.platformId;
+        if (!id) {
+            throw new Error('FolderManager: platformId is required to resolve domain settings.');
+        }
+        const code = PLATFORM_CODES[id];
+        const setting = await this.getGlobalSetting();
+        return {
+            enabled: code !== undefined ? setting.td.includes(code) : DEFAULT_DOMAIN_SETTINGS.enabled,
+            syncNativeChanges: code !== undefined ? setting.snc.includes(code) : DEFAULT_DOMAIN_SETTINGS.syncNativeChanges,
+        };
+    }
+
+    static async updateDomainSettings(partial: Partial<DomainSettings>, platformId?: string): Promise<DomainSettings> {
+        const id = platformId ?? this.adapter?.platformId;
+        if (!id) {
+            throw new Error('FolderManager: platformId is required to resolve domain settings.');
+        }
+        const code = PLATFORM_CODES[id];
+        if (code === undefined) {
+            throw new Error(`FolderManager: unknown platformId "${id}".`);
+        }
+
+        const updated = await this.updateGlobalSetting((current) => ({
+            td: partial.enabled !== undefined ? withCode(current.td, code, partial.enabled) : current.td,
+            snc: partial.syncNativeChanges !== undefined ? withCode(current.snc, code, partial.syncNativeChanges) : current.snc,
+        }));
+
+        return {
+            enabled: updated.td.includes(code),
+            syncNativeChanges: updated.snc.includes(code),
+        };
+    }
+
+	/**
+	 * Converts the compact on-disk tree into the full runtime FolderData tree:
+	 * reconstructs parentId from recursion position, and fills in every
+	 * omitted field with its default.
+	 */
+	private static hydrate(nodes: StoredNode[] | undefined, parentId: string | null): FolderData[] {
+		if (!nodes) return [];
+		return nodes.map((n): FolderData => {
+			const isChat = n.isC === 1;
+			return {
+				id: n.id,
+				name: n.nm,
+				color: isChat ? CHAT_LEAF_COLOR_CODE : (n.cl ?? DEFAULT_COLOR_CODE),
+				parentId,
+				isCollapsed: n.cd === 1,
+				isChat,
+				children: this.hydrate(n.ch, n.id),
+			};
 		});
 	}
 
-	static async updateDomainSettings(partial: Partial<DomainSettings>, platformId?: string): Promise<DomainSettings> {
-		const current = await this.getDomainSettings(platformId);
-		const merged = { ...current, ...partial };
-		const key = this.getDomainStorageKey(platformId);
-		return new Promise((resolve, reject) => {
-			chrome.storage.local.set({ [key]: merged }, () => {
-				if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-				else resolve(merged);
-			});
+	/**
+	 * Converts the full runtime FolderData tree back into the compact on-disk
+	 * shape: drops parentId, abbreviates keys, and omits any field currently
+	 * at its default value.
+	 */
+	private static dehydrate(nodes: FolderData[]): StoredNode[] {
+		return nodes.map((f): StoredNode => {
+			const out: StoredNode = { id: f.id, nm: f.name };
+			if (!f.isChat) out.cl = f.color; // color is meaningless for chat leaves — never persisted for them
+			if (f.isCollapsed) out.cd = 1;
+			if (f.isChat) out.isC = 1;
+			if (f.children && f.children.length > 0) out.ch = this.dehydrate(f.children);
+			return out;
 		});
-	}
+	}	
 
 	/**
      * Retrieves the entire hierarchical folder tree from local storage.
@@ -150,34 +286,32 @@ export class FolderManager {
 		await this.saveStorageData(data);
 	}
 
-	/**
+    /**
      * Creates and inserts a new folder into the tree.
      * @param {string} name - Display name of the folder.
-     * @param {string} color - Hex code or style class representing the folder color.
-     * @param {string | null} [parentId=null] - ID of the parent folder, or null if it's a root-level folder.
-     * @returns {Promise<FolderData[]>} The newly updated folder tree.
+     * @param {number} color - Preset color code (see COLOR_TABLE in Folder.ts).
+     * @param {string | null} [parentId=null] - Parent folder id, or null for root-level.
      */
-	static async addFolder(name: string, color: string, parentId: string | null = null): Promise<FolderData[]> {
-        const allFolders = await this.getFolders();
-
-    	const sanitizedName = name.trim().slice(0, MAX_FOLDER_NAME_LENGTH);
+    static async addFolder(name: string, color: number, parentId: string | null = null): Promise<FolderData[]> {
+        const data = await this.getStorageData();
+        const sanitizedName = truncateUtf8Bytes(name.trim(), MAX_FOLDER_NAME_BYTES);
 
         const newFolder: FolderData = {
-            id: Date.now().toString(),
+            id: String(data.nextId),
             name: sanitizedName,
-			color, parentId,
+            color, parentId,
             children: [],
-            items: []
         };
+        data.nextId += 1;
 
         if (!parentId) {
-            allFolders.unshift(newFolder);
+            data.folders.unshift(newFolder);
         } else {
-            this.findAndAddChild(allFolders, parentId, newFolder);
+            this.findAndAddChild(data.folders, parentId, newFolder);
         }
 
-        await this.saveFolders(allFolders);
-        return allFolders;
+        await this.saveStorageData(data);
+        return data.folders;
     }
 
 	/**
@@ -188,24 +322,24 @@ export class FolderManager {
      * @param {string} data.color - The new color for the folder.
      * @returns {Promise<void>}
      */
-	public static async updateFolder(id: string, data: { name: string, color: string }): Promise<void> {
-		let folders = await this.getFolders();
-		const sanitizedName = data.name.trim().slice(0, MAX_FOLDER_NAME_LENGTH);
+	public static async updateFolder(id: string, data: { name: string, color: number }): Promise<void> {
+        let folders = await this.getFolders();
+        const sanitizedName = truncateUtf8Bytes(data.name.trim(), MAX_FOLDER_NAME_BYTES);
 
-		const updateInTree = (list: FolderData[]) => {
-			for (const f of list) {
-				if (f.id === id) {
-					f.name = sanitizedName;
-					f.color = data.color;
-					return true;
-				}
-				if (f.children && updateInTree(f.children)) return true;
-			}
-			return false;
-		};
+        const updateInTree = (list: FolderData[]) => {
+            for (const f of list) {
+                if (f.id === id) {
+                    f.name = sanitizedName;
+                    f.color = data.color;
+                    return true;
+                }
+                if (f.children && updateInTree(f.children)) return true;
+            }
+            return false;
+        };
 
-		updateInTree(folders);
-		await this.saveFolders(folders);
+        updateInTree(folders);
+        await this.saveFolders(folders);
 	}	
 
 	/**
@@ -331,18 +465,17 @@ export class FolderManager {
     static async saveChatToFolder(parentId: string, chat: { id: string; title: string }): Promise<FolderData[]> {
         const folders = await this.getFolders();
 
-		const sanitizedTitle = (chat.title || 'Untitled Chat')
-								.replace(/\s+/g, ' ')
-								.trim()
-								.slice(0, MAX_CHAT_NAME_LENGTH);
+        const sanitizedTitle = truncateUtf8Bytes(
+            (chat.title || 'Untitled Chat').replace(/\s+/g, ' ').trim(),
+            MAX_CHAT_NAME_BYTES
+        );
 
         const chatNode: FolderData = {
             id: `${chat.id}`,
             name: sanitizedTitle,
-            color: '#888888',
+            color: CHAT_LEAF_COLOR_CODE,
             parentId: parentId,
             children: [],
-            items: [],
             isChat: true,
         };
 
@@ -452,7 +585,8 @@ export class FolderManager {
 	 */
 	static async renameNode(id: string, newName: string): Promise<FolderData[]> {
 		const folders = await this.getFolders();
-		const sanitizedName = newName.trim().slice(0, MAX_CHAT_NAME_LENGTH);
+        // renameNode targets chat leaves (native rename sync), so use the chat byte budget.
+        const sanitizedName = truncateUtf8Bytes(newName.trim(), MAX_CHAT_NAME_BYTES);
 		const renameInTree = (list: FolderData[]): void => {
 			for (const f of list) {
 				if (f.id === id) {

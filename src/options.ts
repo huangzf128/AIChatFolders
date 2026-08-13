@@ -125,83 +125,99 @@ function setupCollapsibles(): void {
  * Handle configuration JSON export
  */
 function setupExport(): void {
-  const exportBtn = document.getElementById('exportBtn');
-  if (!exportBtn) return;
+	const exportBtn = document.getElementById('exportBtn');
+	if (!exportBtn) return;
 
-  exportBtn.addEventListener('click', async () => {
-    try {
-      const allData = await chrome.storage.local.get(null);
+	exportBtn.addEventListener('click', async () => {
+		try {
+			const [localData, syncData] = await Promise.all([
+				chrome.storage.local.get(null),
+				chrome.storage.sync.get(null),
+			]);
 
-      // Only export data with acf_ prefix
-      const filteredData: Record<string, any> = {};
-      for (const [key, value] of Object.entries(allData)) {
-        if (key.startsWith('acf_')) {
-          filteredData[key] = value;
-        }
-      }
+			const filterAcf = (data: Record<string, any>): Record<string, any> => {
+				const out: Record<string, any> = {};
+				for (const [key, value] of Object.entries(data)) {
+				if (key.startsWith('acf_')) out[key] = value;
+				}
+				return out;
+			};
 
-      const blob = new Blob([JSON.stringify(filteredData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `AIChatFolders_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('[AIChatFolders] Export failed:', error);
-      alert('Export failed. Please check the console for details.');
-    }
-  });
+			const payload = {
+				local: filterAcf(localData),
+				sync: filterAcf(syncData),
+			};
+
+			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `AIChatFolders_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (error) {
+			console.error('[AIChatFolders] Export failed:', error);
+			alert('Export failed. Please check the console for details.');
+		}
+	});
 }
 
 /**
  * Handle configuration JSON import
  */
 function setupImport(): void {
-  const importBtn = document.getElementById('importBtn');
-  const fileInput = document.getElementById('fileInput') as HTMLInputElement | null;
-  if (!importBtn || !fileInput) return;
+	const importBtn = document.getElementById('importBtn');
+	const fileInput = document.getElementById('fileInput') as HTMLInputElement | null;
+	if (!importBtn || !fileInput) return;
 
-  importBtn.addEventListener('click', () => {
-    fileInput.click();
-  });
+	importBtn.addEventListener('click', () => {
+		fileInput.click();
+	});
 
-  fileInput.addEventListener('change', (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    if (!file) return;
+	fileInput.addEventListener('change', (event: Event) => {
+		const target = event.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (e: ProgressEvent<FileReader>) => {
-      try {
-        const content = e.target?.result as string;
-        const parsedData = JSON.parse(content);
+		const reader = new FileReader();
+		reader.onload = async (e: ProgressEvent<FileReader>) => {
+		try {
+			const content = e.target?.result as string;
+			const parsed = JSON.parse(content);
 
-        if (typeof parsedData !== 'object' || parsedData === null) {
-          throw new Error('Invalid data format: not an object.');
-        }
+			if (typeof parsed !== 'object' || parsed === null) {
+			throw new Error('Invalid data format: not an object.');
+			}
 
-        // Check for valid acf_ prefixed keys
-        const hasValidKeys = Object.keys(parsedData).some((key) => key.startsWith('acf_'));
-        if (!hasValidKeys) {
-          throw new Error('No valid AIChatFolders data found in the file.');
-        }
+			// Support both the new { local, sync } export shape and a legacy
+			// flat export (everything used to live in chrome.storage.local).
+			const localPart: Record<string, any> = (parsed.local && typeof parsed.local === 'object') ? parsed.local : parsed;
+			const syncPart: Record<string, any> = (parsed.sync && typeof parsed.sync === 'object') ? parsed.sync : {};
 
-        await chrome.storage.local.set(parsedData);
-        const successMsg = chrome.i18n.getMessage('importSuccess') || 'Import succeeded! Reloading...';
-        alert(successMsg);
-        window.location.reload();
-      } catch (err) {
-        console.error('Failed to parse JSON file:', err);
-        const failMsg = chrome.i18n.getMessage('importFailed') || 'Invalid JSON file.';
-        alert(failMsg);
-      }
-    };
-    reader.readAsText(file);
+			const hasValidKeys =
+			Object.keys(localPart).some((key) => key.startsWith('acf_')) ||
+			Object.keys(syncPart).some((key) => key.startsWith('acf_'));
+			if (!hasValidKeys) {
+			throw new Error('No valid AIChatFolders data found in the file.');
+			}
 
-    // Reset file input so the same file can be imported again
-    target.value = '';
-  });
+			await Promise.all([
+			Object.keys(localPart).length ? chrome.storage.local.set(localPart) : Promise.resolve(),
+			Object.keys(syncPart).length ? chrome.storage.sync.set(syncPart) : Promise.resolve(),
+			]);
+
+			const successMsg = chrome.i18n.getMessage('importSuccess') || 'Import succeeded! Reloading...';
+			alert(successMsg);
+			window.location.reload();
+		} catch (err) {
+			console.error('Failed to parse JSON file:', err);
+			const failMsg = chrome.i18n.getMessage('importFailed') || 'Invalid JSON file.';
+			alert(failMsg);
+		}
+		};
+		reader.readAsText(file);
+		target.value = '';
+	});
 }
 
 // Initialize on DOM ready

@@ -8,7 +8,7 @@ import { FolderEditor } from './FolderEditor';
 import { ICONS } from './icons';
 import { GlobalStyles } from '../ui/styles/index';
 import type { FolderData, AccountSettings, DomainSettings, NativeChangeType } from '../models/Folder';
-import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS } from '../models/Folder';
+import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS, DEFAULT_GLOBAL_SETTING, resolveColor } from '../models/Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
 
 // Class name applied to native sidebar rows that should be hidden
@@ -69,21 +69,26 @@ export class RightSidebar {
 		this.applyHideToAllRows(); // handle whatever native rows are already in the DOM right now		
     }
 
-	/**
-	 * Keeps the in-memory domainSettings cache in sync with chrome.storage,
-	 * so toggles changed on the options page (e.g. syncNativeChanges) take
+/**
+	 * Keeps the in-memory domainSettings cache in sync with the shared
+	 * { td, snc } setting item, so toggles changed on the options page take
 	 * effect immediately on already-open tabs, without a page refresh.
 	 */
 	private watchDomainSettingsChanges(): void {
 		if (!this.adapter) return;
-		const domainKey = FolderManager.getDomainStorageKey(this.adapter.platformId);
+		const settingKey = FolderManager.getGlobalSettingStorageKey();
+		const code = FolderManager.getPlatformCode(this.adapter.platformId);
 
 		chrome.storage.onChanged.addListener((changes, areaName) => {
-			if (areaName !== 'local') return;
-			const change = changes[domainKey];
+			if (areaName !== 'sync') return;
+			const change = changes[settingKey];
 			if (!change) return;
 
-			this.domainSettings = { ...DEFAULT_DOMAIN_SETTINGS, ...(change.newValue || {}) };
+			const newSetting = { ...DEFAULT_GLOBAL_SETTING, ...(change.newValue || {}) };
+			this.domainSettings = {
+				enabled: code !== undefined ? newSetting.td.includes(code) : DEFAULT_DOMAIN_SETTINGS.enabled,
+				syncNativeChanges: code !== undefined ? newSetting.snc.includes(code) : DEFAULT_DOMAIN_SETTINGS.syncNativeChanges,
+			};
 			console.log('[AIChatFolders] Domain settings updated live:', this.domainSettings);
 		});
 	}
@@ -757,13 +762,13 @@ export class RightSidebar {
 
 			// Inside the folder rendering section
 			const iconClass = hasChildren ? 'aichat-folder-icon colored toggle-folder' : 'aichat-folder-icon toggle-folder';
-			const glowStyle = hasChildren ? `style="--glow-color: ${folder.color};"` : '';
+			const glowStyle = hasChildren ? `style="--glow-color: ${resolveColor(folder.color)};"` : '';
 			const folderIcon = (isCollapsed || !hasChildren) ? ICONS.FOLDER_CLOSED : ICONS.FOLDER_OPEN;
 
 			return `
-			<div class="aichat-folder-node ${collapseClass}" style="--glow-color: ${folder.color};">
+			<div class="aichat-folder-node ${collapseClass}" style="--glow-color: ${resolveColor(folder.color)};">
 				<div class="aichat-folder-card" data-id="${folder.id}" draggable="true"
-					style="border-left: 4px solid ${folder.color};">
+					style="border-left: 4px solid ${resolveColor(folder.color)};">
 					<div class="aichat-folder-header">
 						<span class="aichat-folder-title">
 							<span class="${iconClass}" data-id="${folder.id}" ${glowStyle}>
@@ -830,12 +835,6 @@ export class RightSidebar {
 		btn.setAttribute('title', this.AccountSettings.hideChat
 			? 'Show all chats in the native sidebar'
 			: 'Hide chats already saved to a folder');
-	}
-
-	private hideSettingKey(): string {
-		const userId = this.adapter?.getResolvedAccountKey() || 'anon';
-		const sanitized = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
-		return `acf_hideAdded_${this.adapter?.platformId}_${sanitized}`;
 	}
 
 	/** Checks whether a given chat id still exists anywhere in the folder tree. */

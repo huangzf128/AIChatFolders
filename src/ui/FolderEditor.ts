@@ -2,7 +2,8 @@
  * src/ui/FolderEditor.ts
  */
 import { FolderManager } from '../models/FolderManager';
-import type { FolderData, ChatItem } from '../models/Folder';
+import type { FolderData } from '../models/Folder';
+import { COLOR_TABLE, DEFAULT_COLOR_CODE } from '../models/Folder';
 
 export class FolderEditor {
 
@@ -12,8 +13,8 @@ export class FolderEditor {
 		parentId: string | null = null,
 		existingData?: FolderData): HTMLElement {
 
-        const PRESET_COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e74c3c', '#9b59b6', '#f39c12', '#8e44ad', '#fd79a8'];
-		let selectedColor: string = PRESET_COLORS[0] as string;
+        const colorCodes = Object.keys(COLOR_TABLE).map(Number);
+		let selectedColor: number = existingData ? existingData.color : DEFAULT_COLOR_CODE;
 		const initialName = existingData ? existingData.name : '';
     	const saveBtnText = existingData ? 'Update' : 'Create';
 
@@ -24,10 +25,10 @@ export class FolderEditor {
 			<input type="text" class="aichat-input" id="new-folder-name" autocomplete="off"
 						placeholder="Folder Name..." value="${initialName}" maxlength="40" autofocus>
             <div class="aichat-color-picker">
-				${PRESET_COLORS.map((c) => {
-					const isActive = c === selectedColor ? 'active' : '';
-					return `<div class="aichat-color-option ${isActive}" style="background: ${c}" data-color="${c}"></div>`;
-				}).join('')}                
+				${colorCodes.map((code) => {
+					const isActive = code === selectedColor ? 'active' : '';
+					return `<div class="aichat-color-option ${isActive}" style="background: ${COLOR_TABLE[code]}" data-color="${code}"></div>`;
+				}).join('')}            
             </div>
             <div class="aichat-btn-group">
                 <button class="aichat-btn btn-cancel">Cancel</button>
@@ -39,7 +40,7 @@ export class FolderEditor {
             dot.addEventListener('click', () => {
                 form.querySelectorAll('.aichat-color-option').forEach(d => d.classList.remove('active'));
                 dot.classList.add('active');
-                selectedColor = (dot as HTMLElement).dataset.color!;
+                selectedColor = Number((dot as HTMLElement).dataset.color);
             });
         });
 
