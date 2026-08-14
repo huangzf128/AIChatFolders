@@ -32,7 +32,20 @@ export const FolderStyles = `
         align-items: center;
         gap: 10px; /* Increased gap for better breathing room */
         color: #efefef;
+		/* This is the real fix: override the browser's default
+			"min-width: auto" floor on flex items. Without this,
+			the browser refuses to shrink this item below the width
+			of its longest unbreakable content (e.g. a digit string
+			with no spaces to wrap at). Setting it to 0 removes that
+			floor entirely, letting flex-shrink actually do its job. */		
+		min-width: 0;
+  		flex: 1 1 auto; 
     }
+
+	.aichat-folder-title span {
+		min-width: 0;
+		overflow-wrap: break-word;
+	}	
 
 	/* ----------------------------------- */
 	/* --- Folder Icon with Color Glow --- */
