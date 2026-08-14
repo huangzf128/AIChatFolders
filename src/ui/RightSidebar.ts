@@ -168,7 +168,12 @@ export class RightSidebar {
 					</div>
 				</div>
 			</div>
-			<div id="aichat-folder-list"></div>
+			<div class="aichat-body" id="aichat-body">
+				<div id="aichat-folder-list"></div>
+			</div>
+			<div class="aichat-footer" id="aichat-footer">
+				<!-- Reserved for future feature area -->
+			</div>
 		`;
         document.body.appendChild(this.panel);
         this.bindGlobalEvents();

@@ -25,6 +25,7 @@ export const FolderStyles = `
         color: #efefef; 
         font-size: 14px; 
         font-weight: 500;
+		position: relative;
     }
 
     .aichat-folder-title {
@@ -97,21 +98,38 @@ export const FolderStyles = `
 	/* ----------------------------------- */
     /* --- Folder Actions (Plus/Trash) --- */
 	/* ----------------------------------- */
-    .aichat-actions {
+	.aichat-actions {
 		display: flex;
 		gap: 8px;
-    }
-    .aichat-actions span {
-        cursor: pointer;
-        opacity: 0;
-        transition: opacity 0.15s ease;
-        display: flex;
-        align-items: center;
-    }
-	
-	.aichat-folder-card:hover .aichat-actions span {
-		opacity: 0.5;
+		align-items: center;
+		position: absolute;
+		right: 0;
+		top: 50%;
+		transform: translateY(-50%);
+		background: rgba(33, 33, 33, 0.5);  /* 用 rgba 而不是纯色，留一点透明度 */
+		-webkit-backdrop-filter: blur(4px);
+		padding-left: 10px;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.15s ease;
 	}
+	.aichat-actions span {
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		opacity: 1; /* 图标自身永远满饱和度，不受容器透明度影响 */
+	}
+
+	.aichat-folder-card:hover .aichat-actions {
+		opacity: 1;                          /* 整组的显隐仍然是 0/1，不是半透明 */
+		background: rgba(42, 42, 42, 0.85);  /* 跟随 hover 背景色，同样保留一点透明度 */
+		pointer-events: auto;
+	}
+
+	.aichat-actions span:hover {
+		transform: scale(1.15);
+	}
+
 
 	/* Hover effect: Scale up and become fully opaque */
 	.aichat-actions span:hover {
@@ -264,30 +282,15 @@ export const FolderStyles = `
 	
 	/* ── Chat Leaf Nodes (Records) ── */
 
-	/* Chat leaf card: ultra compact, background blends with parent */
-	.aichat-chat-leaf .aichat-folder-card {
+	.aichat-chat-leaf .aichat-actions {
 		background: transparent;
-		border-radius: 0;
-		padding: 1px 2px;
-		min-height: 0;
-		border: none;
-		// border-left: 2px solid #333;
-		margin: 0;
-		transition: background 0.1s ease;
 	}
-
-	.aichat-chat-leaf .aichat-folder-card:hover {
-		background: rgba(255, 255, 255, 0.04);
+	.aichat-chat-leaf .aichat-folder-card:hover .aichat-actions {
+		background: rgba(38, 38, 38, 0.85);
+		opacity: 1;
 	}
-
-	/* Chat title: compact, readable */
-	.aichat-chat-leaf .aichat-folder-title {
-		font-size: 13x;
-		font-weight: 400;
-		color: #e9e9e9;          /* Brighter for readability */
-		gap: 0;
-		min-width: 0;
-		overflow: hidden;
+	.aichat-chat-leaf .delete-btn:hover {
+		opacity: 1 !important;
 	}
 
 	/* Chat anchor link: ellipsis with tooltip on hover */

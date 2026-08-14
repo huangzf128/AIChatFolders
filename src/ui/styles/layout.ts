@@ -16,21 +16,23 @@ export const LayoutStyles = `
         box-sizing: border-box;
     }
 
-    .aichat-panel {
-        position: fixed;
-        right: -320px;
-        top: 0;
-        width: 320px;
-        height: 100%;
-        background-color: #171717;
-        z-index: 10001;
-        transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        padding: 20px;
-        box-sizing: border-box;
-        border-left: 1px solid #333;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    .aichat-panel.is-open { right: 0; }
+	.aichat-panel {
+		position: fixed;
+		right: -320px;
+		top: 0;
+		width: 320px;
+		height: 100%;
+		background-color: #171717;
+		z-index: 10001;
+		transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		box-sizing: border-box;
+		border-left: 1px solid #333;
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+		display: flex;
+		flex-direction: column;
+		padding: 0; /* padding 下放到 header/body/footer 各自身上 */
+	}
+	.aichat-panel.is-open { right: 0; }
 
 
 	/* ------------------------------ */
@@ -40,9 +42,9 @@ export const LayoutStyles = `
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 20px;
-		padding-bottom: 10px;
+		padding: 20px 20px 10px 20px;
 		border-bottom: 1px solid #333;
+		flex-shrink: 0;
 	}
 	
     .aichat-header-btn {
@@ -59,6 +61,37 @@ export const LayoutStyles = `
         background: #333;
         color: #fff;
     }
+
+	/* ------------------------------ */
+	/* --- Scrollable Body Region --- */
+	/* ------------------------------ */
+	.aichat-body {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		overflow-x: hidden;
+		padding: 16px 20px 20px 20px;
+	}
+
+	.aichat-body::-webkit-scrollbar { width: 6px; }
+	.aichat-body::-webkit-scrollbar-track { background: transparent; }
+	.aichat-body::-webkit-scrollbar-thumb {
+		background: #444;
+		border-radius: 3px;
+	}
+	.aichat-body::-webkit-scrollbar-thumb:hover { background: #555; }
+
+	/* ------------------------------ */
+	/* --- Footer (reserved) --- */
+	/* ------------------------------ */
+	.aichat-footer {
+		flex-shrink: 0;
+		height: 60px;
+		padding: 0 20px;
+		border-top: 1px solid #333;
+		display: flex;
+		align-items: center;
+	}	
 	
 	/* ------------------------------ */
     /* ---        dock        --- */
