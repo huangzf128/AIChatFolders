@@ -579,6 +579,20 @@ export class RightSidebar {
 					return;
 				}
 
+				// NEW: A chat record must never become a root-level (top-level) node —
+				// it must always belong to some folder. Dropping it "before"/"after"
+				// a root-level folder would set its parentId to null, orphaning it
+				// outside any folder. Only block this when the drop would actually
+				// land at root level; dropping "inside" a root folder is still fine.
+				if (isDraggingChat && position !== 'inside') {
+					const folders = await FolderManager.getFolders();
+					const targetNodeData = this.findFolderById(folders, targetId);
+					const targetIsRootLevel = !targetNodeData || !targetNodeData.parentId;
+					if (targetIsRootLevel) {
+						return;
+					}
+				}
+
 				await FolderManager.reorder(movingId, targetId, position);
 
 				window.requestAnimationFrame(() => {

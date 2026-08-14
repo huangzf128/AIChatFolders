@@ -282,6 +282,37 @@ export const FolderStyles = `
 	
 	/* ── Chat Leaf Nodes (Records) ── */
 
+	/* Chat leaf card: ultra compact, background blends with parent.
+	   This override must stay independent from .aichat-actions —
+	   deleting it (as happened in 5cddf5e) makes chat leaves fall back
+	   to the generic .aichat-folder-card box model (bordered, tall). */
+	.aichat-chat-leaf .aichat-folder-card {
+		background: transparent;
+		border-radius: 0;
+		padding: 1px 2px;
+		min-height: 0;
+		border: none;
+		margin: 0;
+		transition: background 0.1s ease;
+	}
+
+	.aichat-chat-leaf .aichat-folder-card:hover {
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	/* Chat title: compact, readable */
+	.aichat-chat-leaf .aichat-folder-title {
+		font-size: 13px; /* fixed typo: was "13x" */
+		font-weight: 400;
+		color: #e9e9e9;
+		gap: 0;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	/* Actions overlay mask for chat leaves: card background is
+	   transparent (unlike folder cards' #212121), so it needs its own
+	   hover mask color instead of inheriting the folder one. */
 	.aichat-chat-leaf .aichat-actions {
 		background: transparent;
 	}
