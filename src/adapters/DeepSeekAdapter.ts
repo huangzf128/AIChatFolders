@@ -47,7 +47,7 @@ export class DeepSeekAdapter extends LeftSidebarAdapter {
             this.clearCloseTimer();
             const rect = button.getBoundingClientRect();
             const folders = await FolderManager.getFolders();
-            this.showLevelMenu(rect.right + 2, rect.top, folders);
+            this.showLevelMenu({ left: rect.left, right: rect.right, top: rect.top }, folders);
         });
 
         button.addEventListener('mouseleave', () => this.startCloseTimer());	

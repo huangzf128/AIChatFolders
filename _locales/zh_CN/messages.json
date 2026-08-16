@@ -17,5 +17,7 @@
   "importDesc": { "message": "从 JSON 配置文件恢复文件夹结构" },
   "importSuccess": { "message": "导入成功！即将刷新页面..." },
   "importFailed": { "message": "导入失败，请检查配置文件格式是否正确。" },
-  "saved": { "message": "已保存！" }
+  "saved": { "message": "已保存！" },
+  "footerFeedback": { "message": "遇到问题或有好的建议？" },
+  "footerLink": { "message": "在 GitHub 上提交反馈" }
 }

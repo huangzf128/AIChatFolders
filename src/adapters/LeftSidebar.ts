@@ -210,14 +210,17 @@ export abstract class LeftSidebarAdapter {
 	}
 
 	/**
-     * Creates, positions, and manages the operational lifecycle of a multi-level cascading folder menu.
-     * @protected
-     * @param {number} x - Target horizontal page coordinate for anchor positioning.
-     * @param {number} y - Target vertical page coordinate for anchor positioning.
-     * @param {any[]} folders - Layer segments of the folder tree structure to render.
-     * @param {number} [level=0] - Current absolute depth of the nested cascade layer.
-     */
-	protected showLevelMenu(x: number, y: number, folders: any[], level: number = 0): void {
+	 * Creates, positions, and manages the operational lifecycle of a multi-level cascading folder menu.
+	 * @protected
+	 * @param {{ left: number; right: number; top: number }} anchor - Bounding box of the element this menu is anchored to (button or parent menu item).
+	 * @param {any[]} folders - Layer segments of the folder tree structure to render.
+	 * @param {number} [level=0] - Current absolute depth of the nested cascade layer.
+	 */
+	protected showLevelMenu(
+		anchor: { left: number; right: number; top: number },
+		folders: any[],
+		level: number = 0
+	): void {
 		if (level === 0) this.removeCascadeMenus();
 
 		const pureFolders = (folders || []).filter(f => !f.isChat);
@@ -259,7 +262,9 @@ export abstract class LeftSidebarAdapter {
 					const rect = item.getBoundingClientRect();
 					// Pass pre-filtered child slices to prevent redundant calculation cycles
 					const childFolders = folder.children.filter((c: any) => !c.isChat);
-					this.showLevelMenu(rect.right, rect.top, childFolders, level + 1);
+					// Pass the full anchor rect (not just a single x) so the next
+					// level can flip to the left side if it would overflow.
+					this.showLevelMenu({ left: rect.left, right: rect.right, top: rect.top }, childFolders, level + 1);
 				});
 			} else {
 				item.addEventListener('mouseenter', () => {
@@ -274,20 +279,27 @@ export abstract class LeftSidebarAdapter {
 
 		// UI Boundary calculation safeguards: Adjust constraints if elements exceed current viewport boundaries
 		const menuHeight = menu.offsetHeight;
+		const menuWidth = menu.offsetWidth;
 		const viewportHeight = window.innerHeight;
+		const viewportWidth = window.innerWidth;
 		const padding = 10;
 
-		let adjustedY = y;
-		if (y + menuHeight > viewportHeight - padding) {
+		let adjustedY = anchor.top;
+		if (anchor.top + menuHeight > viewportHeight - padding) {
 			adjustedY = Math.max(padding, viewportHeight - menuHeight - padding);
 		}
 
-		// 💡 Also check right boundary (prevent overflow on the right)
-		const menuWidth = menu.offsetWidth;
-		const viewportWidth = window.innerWidth;
-		let adjustedX = x;
-		if (x + menuWidth > viewportWidth - padding) {
-			adjustedX = Math.max(padding, viewportWidth - menuWidth - padding);
+		// Prefer opening to the right of the anchor, mirroring native OS
+		// context menus. If that would overflow the viewport's right edge,
+		// flip the menu to open on the LEFT side of the anchor instead of
+		// clamping it — clamping just stacks every deeper level on top of
+		// its parent once the right edge is reached.
+		let adjustedX = anchor.right + 2;
+		if (adjustedX + menuWidth > viewportWidth - padding) {
+			const flippedX = anchor.left - menuWidth - 2;
+			// Only flip if there's actually room on the left; otherwise fall
+			// back to clamping so the menu doesn't get pushed off both edges.
+			adjustedX = flippedX >= padding ? flippedX : Math.max(padding, viewportWidth - menuWidth - padding);
 		}
 
 		menu.style.top = `${adjustedY}px`;

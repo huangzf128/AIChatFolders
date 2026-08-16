@@ -17,5 +17,7 @@
   "importDesc": { "message": "Restore folder structure from a JSON config file" },
   "importSuccess": { "message": "Import succeeded! Reloading settings..." },
   "importFailed": { "message": "Failed to import. Please check if the file format is valid JSON." },
-  "saved": { "message": "Saved!" }
+  "saved": { "message": "Saved!" },
+  "footerFeedback": { "message": "Having issues or have a suggestion?" },
+  "footerLink": { "message": "Open an issue on GitHub" }
 }

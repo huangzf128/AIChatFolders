@@ -17,5 +17,7 @@
   "importDesc": { "message": "JSON設定ファイルからフォルダ構造を復元します" },
   "importSuccess": { "message": "インポートに成功しました！設定を再読み込みしています..." },
   "importFailed": { "message": "インポートに失敗しました。ファイル形式が正しいJSONか確認してください。" },
-  "saved": { "message": "保存しました！" }
+  "saved": { "message": "保存しました！" },
+  "footerFeedback": { "message": "問題が発生しましたか？それとも提案がありますか？" },
+  "footerLink": { "message": "GitHubでIssueを開く" }
 }

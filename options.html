@@ -220,6 +220,23 @@
       opacity: 1;
       transform: translateY(0) scale(1);
     }
+
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 16px;
+      color: var(--text-muted);
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: var(--text-main);
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -373,6 +390,12 @@
         <input type="file" id="fileInput" accept=".json" style="display: none;">
       </div>
     </div>
+	<footer>
+		<p>
+			<span data-i18n="footerFeedback">Having issues or have a suggestion?</span> 
+			<a href="https://github.com/huangzf128/AIChatFolders/issues" target="_blank" rel="noopener noreferrer" data-i18n="footerLink">Open an issue on GitHub</a>.
+		</p>
+	</footer>
   </div>
 
   <div id="toast" class="toast">
