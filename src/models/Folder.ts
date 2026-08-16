@@ -87,10 +87,20 @@ export const PLATFORM_CODES: Record<string, number> = {
 export interface GlobalSetting {
 	td: number[];
 	snc: number[];
+	/**
+	 * Whether cloud sync (chrome.storage.sync) is enabled, globally across
+	 * every platform — a single on/off switch, not per-platform. 0/1 rather
+	 * than boolean to match the compact numeric style of this item, since
+	 * it's the one setting item small/stable enough to roam ahead of
+	 * everything else. Default 0: local-only until the user opts in from
+	 * the options page.
+	 */
+	cs: 0 | 1;
 }
 export const DEFAULT_GLOBAL_SETTING: GlobalSetting = {
 	td: Object.values(PLATFORM_CODES),
 	snc: Object.values(PLATFORM_CODES),
+	cs: 0,
 };
 
 /**

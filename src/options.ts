@@ -82,6 +82,35 @@ async function loadSettings(): Promise<void> {
 }
 
 /**
+ * Load and bind the single global cloud-sync switch. Unlike the per-platform
+ * settings above, this only ever flips the `cs` flag in the shared
+ * chrome.storage.sync setting item — it deliberately does NOT push/pull any
+ * actual folder/chat data itself, since the options page has no platform
+ * adapter and thus no resolved account to attribute that data to. The
+ * actual reconciliation happens in each open tab's content script once it
+ * notices the flag change (see RightSidebar's cloud-sync watcher).
+ */
+async function loadCloudSyncToggle(): Promise<void> {
+  const toggle = document.getElementById('cloud_sync_toggle') as HTMLInputElement | null;
+  if (!toggle) return;
+
+  try {
+    toggle.checked = await FolderManager.isCloudSyncEnabled();
+  } catch (error) {
+    console.error('[AIChatFolders] Failed to load cloud sync setting:', error);
+  }
+
+  toggle.addEventListener('change', async () => {
+    try {
+      await FolderManager.setCloudSyncEnabled(toggle.checked);
+      showToast('saved');
+    } catch (error) {
+      console.error('[AIChatFolders] Failed to save cloud sync setting:', error);
+    }
+  });
+}
+
+/**
  * Setup collapsible behavior for ALL sections marked with
  * .collapsible-header[data-target]. This is generic on purpose:
  * any section can opt into collapsing just by adding the
@@ -225,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('[AIChatFolders] Options page loaded');
   applyI18n();
   loadSettings();
+  loadCloudSyncToggle();
   setupCollapsibles();
   setupExport();
   setupImport();

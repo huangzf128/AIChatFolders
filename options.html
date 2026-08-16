@@ -336,6 +336,22 @@
       </div>
     </div>
 
+    <!-- Cloud Sync (chrome.storage.sync) — one global switch, not collapsible.
+         Deliberately named/worded to stay distinct from "Chat Sync Settings"
+         above, which is about native rename/delete mirroring, not cross-device backup. -->
+    <div class="section">
+      <div class="section-title" style="margin-bottom: 4px;" data-i18n="sectionCloudSyncTitle">Cloud Sync</div>
+      <div class="section-desc" data-i18n="cloudSyncDesc">Sync your folders and saved chats across your devices via your browser's own sign-in sync. Off by default.</div>
+
+      <div class="setting-row">
+        <span class="platform-name" data-i18n="cloudSyncToggleLabel">Sync across devices</span>
+        <label class="switch">
+          <input type="checkbox" id="cloud_sync_toggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
     <!-- Data Management (Export/Import) — not collapsible, short enough as-is -->
     <div class="section">
       <div class="section-title" data-i18n="sectionDataTitle">Data Management</div>

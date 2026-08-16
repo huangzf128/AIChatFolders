@@ -1,0 +1,700 @@
+diff --git a/_locales/en/messages.json b/_locales/en/messages.json
+index 4ba6ccd..a6e9917 100644
+--- a/_locales/en/messages.json
++++ b/_locales/en/messages.json
+@@ -5,6 +5,9 @@
+   "enableDesc": { "message": "Choose which AI platforms will run the AIChatFolders extension." },
+   "sectionSyncTitle": { "message": "Chat Sync Settings" },
+   "syncDesc": { "message": "Automatically sync local folder records when chats are renamed or deleted in native sidebar" },
++  "sectionCloudSyncTitle": { "message": "Cloud Sync" },
++  "cloudSyncDesc": { "message": "Sync folders and saved chats across your devices via your browser's own sign-in sync. This is a separate folder set from local storage \u2014 switching modes does not carry your existing folders over. Off by default." },
++  "cloudSyncToggleLabel": { "message": "Sync across devices" },
+   "collapseText": { "message": "Click to collapse" },
+   "expandText": { "message": "Click to expand" },
+   "sectionDataTitle": { "message": "Data Management" },
+diff --git a/_locales/ja/messages.json b/_locales/ja/messages.json
+index f78d078..caff3ed 100644
+--- a/_locales/ja/messages.json
++++ b/_locales/ja/messages.json
+@@ -5,6 +5,9 @@
+   "enableDesc": { "message": "AIChatFolders 拡張機能を使用する AI プラットフォームを選択します。" },
+   "sectionSyncTitle": { "message": "チャット同期設定" },
+   "syncDesc": { "message": "ネイティブサイドバーでチャットの名前変更や削除が行われた際に、ローカルフォルダの記録を自動的に同期します" },
++  "sectionCloudSyncTitle": { "message": "クラウド同期" },
++  "cloudSyncDesc": { "message": "ブラウザのサインイン同期を利用して、フォルダと保存済みチャットをデバイス間で同期します。ローカル保存とは別のフォルダとして扱われ、切り替えても既存のフォルダは引き継がれません。デフォルトではオフです。" },
++  "cloudSyncToggleLabel": { "message": "デバイス間で同期する" },
+   "collapseText": { "message": "クリックして折りたたむ" },
+   "expandText": { "message": "クリックして展開" },
+   "sectionDataTitle": { "message": "データ管理" },
+diff --git a/_locales/zh_CN/messages.json b/_locales/zh_CN/messages.json
+index c8ea388..dc944ac 100644
+--- a/_locales/zh_CN/messages.json
++++ b/_locales/zh_CN/messages.json
+@@ -5,6 +5,9 @@
+   "enableDesc": { "message": "选择要在哪些 AI 平台上运行 AIChatFolders 插件。" },
+   "sectionSyncTitle": { "message": "聊天记录同步设定" },
+   "syncDesc": { "message": "在原生侧边栏重命名或删除对话时，自动同步修改本地文件夹中的记录" },
++  "sectionCloudSyncTitle": { "message": "跨设备同步" },
++  "cloudSyncDesc": { "message": "借助浏览器自身的登录同步，在你的设备之间同步文件夹和已保存的聊天。这是与本地存储完全独立的一套文件夹，切换模式不会带过来已有的文件夹。默认关闭。" },
++  "cloudSyncToggleLabel": { "message": "跨设备同步" },
+   "collapseText": { "message": "点击收起" },
+   "expandText": { "message": "点击展开" },
+   "sectionDataTitle": { "message": "数据管理" },
+diff --git a/docs/features/CloudSync.md b/docs/features/CloudSync.md
+new file mode 100644
+index 0000000..040aaf0
+--- /dev/null
++++ b/docs/features/CloudSync.md
+@@ -0,0 +1,136 @@
++# Cloud Sync
++
++## Summary
++Optionally stores folders and saved-chat references in `chrome.storage.sync`
++(the browser's own sign-in sync) instead of `chrome.storage.local`,
++controlled by a single global on/off switch on the options page. Local and
++cloud are two fully **independent** storage modes — switching between them
++does not merge, migrate, or import data either direction. Off by default.
++
++## Key Capabilities
++- **One global switch**: a single toggle in the options page, not
++  per-platform — it applies to every platform/account at once.
++- **Local and cloud never touch each other.** Whichever mode is off is left
++  completely untouched. Turning cloud sync on does not read or copy
++  anything out of local; turning it back off does not touch whatever
++  accumulated in cloud. Each mode's data is only ever read/written while
++  that mode is the active one.
++- **Starting cloud sync means starting fresh.** The first time cloud sync is
++  turned on, `acf_folders` is empty (unless another device already
++  populated it) — the user re-creates their folders there. This is a
++  deliberate simplification: independently-created local folder ids/names
++  across different accounts have no reliable way to be reconciled
++  automatically, so no attempt is made — see Known Limitations.
++- **No custom cross-device conflict resolution**: once data is written to
++  `chrome.storage.sync`, propagating it to the user's other devices is left
++  entirely to the browser's own sync engine.
++
++## Technical Implementation
++
++### Architecture
++- **Two independent storage backends behind one interface.**
++  `FolderManager.getStorageData()` / `saveStorageData()` — the single choke
++  point every folder-tree CRUD method (`addFolder`, `saveChatToFolder`,
++  `reorder`, etc.) already goes through — now branch on
++  `isCloudSyncEnabled()`:
++  - **Local mode**: unchanged from before this feature —
++    `getLocalStorageData()` / `saveLocalStorageData()` read/write the
++    per-account `acf_{platform}_{userId}` key exactly as always.
++  - **Cloud mode**: `getCloudStorageData()` / `saveCloudStorageData()`
++    read/write `chrome.storage.sync` instead (see key layout below).
++  Neither branch reads from or writes to the other's store. There is no
++  merge step anywhere in this feature.
++- **Folder structure is global; chat filing is per account, even in cloud
++  mode.** The folder tree itself (`acf_folders`) is one shared item across
++  every platform and account — the whole point is to see the same folder
++  list everywhere. Which chats are filed into which folder is tracked
++  separately, per platform+account, as
++  `acf_c_{platformCode}_{sanitizedUserId}_{idx}` — otherwise one account's
++  growing chat list would bloat an item every other account also has to
++  read, and would blow past `chrome.storage.sync`'s 8KB-per-item cap much
++  sooner.
++- **Chat-ref chunking.** Chat refs (`{ id, nm, fid }`) are packed into
++  chunks that stay under `MAX_SYNC_CHUNK_BYTES` (7000, leaving headroom
++  under the real 8192-byte quota) via `packChatRefs()`. Chunk enumeration
++  on read uses `chrome.storage.sync.get(null)` filtered by key prefix
++  rather than a separate chunk-count meta item — sync's 100KB total quota
++  is small enough to fetch in one call, and this avoids a class of bugs
++  where a meta counter and the actual chunk keys drift apart. Writes fully
++  **repack** the account's chat refs from scratch each time (not
++  incremental append), which trivially handles chunk count shrinking
++  (deletions) at the cost of rewriting the whole set on every folder
++  mutation — acceptable at the scale these lists reach in practice.
++- **`AccountSettings` (e.g. `hideChat`) is always local**, regardless of
++  storage mode — it's a per-device display preference, not folder/chat
++  data, so `getCloudStorageData()` still reads it from the local key
++  (`getLocalStorageData()`) and `saveCloudStorageData()` still writes it
++  there. This is the one place cloud mode touches `chrome.storage.local` at
++  all.
++- **Live cross-device/tab updates, no merge on receipt.**
++  `RightSidebar.watchCloudSyncChanges()` listens on
++  `chrome.storage.onChanged` for the `sync` area and simply calls
++  `refresh()` — which re-reads through the same mode-routed
++  `getStorageData()` and re-renders — whenever the global `cs` flag, the
++  shared folder tree, or this account's own chat-ref chunks change. This
++  covers both "another device changed something in cloud mode" and "the
++  toggle itself flipped elsewhere," so an already-open tab swaps which
++  store it's showing immediately.
++- **Why the options page can't do more than flip the flag**: `options.html`
++  runs as a standalone extension page with no `LeftSidebarAdapter` and no
++  resolved account — it has no idea which platform/userId any given chat
++  belongs to. `FolderManager.setCloudSyncEnabled()` therefore only flips
++  the `cs` flag in the shared `acf_setting` item; each open tab's own
++  content-script instance picks up the change via the watcher above.
++
++### Interaction Logic / Behavior
++- Toggling "Sync across devices" on the options page only ever writes one
++  small flag — nothing else happens synchronously from that page.
++- An already-open tab notices the flag flip via `onChanged` and immediately
++  re-renders from the newly-active store.
++- A freshly opened tab just reads whichever store is currently active — no
++  special first-load behavior beyond the normal `refresh()` in `init()`.
++- Turning cloud sync back off does not delete anything from
++  `chrome.storage.sync`; that data stays there (and reappears if the toggle
++  is turned back on later) but is invisible while local mode is active.
++
++### Files Involved
++- `src/models/Folder.ts` — `GlobalSetting.cs` flag.
++- `src/models/FolderManager.ts` — `isCloudSyncEnabled` / `setCloudSyncEnabled`;
++  `getLocalStorageData` / `saveLocalStorageData` (renamed from the original
++  always-local pair); `getCloudStorageData` / `saveCloudStorageData`; the
++  mode-routed `getStorageData` / `saveStorageData`; `dehydrateFoldersOnly`,
++  `extractChatRefs` / `graftChatRefs`, `packChatRefs`, `readSyncFolders` /
++  `writeSyncFolders`, `readChatRefsFromSync` / `writeChatRefsToSync`.
++- `src/ui/RightSidebar.ts` — `watchCloudSyncChanges`.
++- `src/options.ts`, `options.html`, `_locales/*/messages.json` — the single
++  global toggle UI.
++
++## Known Limitations
++- **No data migration between modes, by design.** Enabling cloud sync does
++  not import existing local folders; disabling it does not export cloud
++  folders back to local. The user manually recreates their folder
++  structure in whichever mode they're newly entering. (An explicit
++  non-goal per project discussion — automatic reconciliation between
++  independently-assigned local folder ids across accounts was judged not
++  worth the complexity/risk for v1.)
++- Cloud mode only updates a tab's UI while that tab is open (on load, or
++  live via `onChanged`). If a platform isn't visited for a long time after
++  another device changes the shared tree, its view simply lags until it's
++  next opened — there's no background sync.
++- Concurrent-edit conflicts between two devices both in cloud mode at the
++  same time (e.g. renaming the same folder differently at once) are not
++  resolved by this extension — left entirely to `chrome.storage.sync`'s own
++  eventual consistency (last write per key wins).
++- The existing Export/Import JSON feature (options page) only reads/writes
++  `chrome.storage.local`; it does not yet cover cloud-mode data.
++
++## Revision History
++| Date | Commit | Description |
++|------|--------|--------------|
++| 2026-08-15 | `<commit-hash>` | Initial implementation: global cloud-sync toggle; two fully independent storage modes (no merge) routed through `FolderManager.getStorageData()`/`saveStorageData()`; shared folder-tree sync (`acf_folders`); per-account chunked chat-ref sync (`acf_c_*`). |
++
++## TODO
++- [ ] Extend Export/Import JSON to cover cloud-mode data.
++- [ ] Consider a lightweight "last synced at" indicator on the options page.
++- [ ] Revisit background reconciliation (e.g. via the service worker) if the
++      "only updates while a tab is open" limitation turns out to matter.
+diff --git a/options.html b/options.html
+index 51bec86..9c61639 100644
+--- a/options.html
++++ b/options.html
+@@ -336,6 +336,22 @@
+       </div>
+     </div>
+ 
++    <!-- Cloud Sync (chrome.storage.sync) — one global switch, not collapsible.
++         Deliberately named/worded to stay distinct from "Chat Sync Settings"
++         above, which is about native rename/delete mirroring, not cross-device backup. -->
++    <div class="section">
++      <div class="section-title" style="margin-bottom: 4px;" data-i18n="sectionCloudSyncTitle">Cloud Sync</div>
++      <div class="section-desc" data-i18n="cloudSyncDesc">Sync your folders and saved chats across your devices via your browser's own sign-in sync. Off by default.</div>
++
++      <div class="setting-row">
++        <span class="platform-name" data-i18n="cloudSyncToggleLabel">Sync across devices</span>
++        <label class="switch">
++          <input type="checkbox" id="cloud_sync_toggle">
++          <span class="slider"></span>
++        </label>
++      </div>
++    </div>
++
+     <!-- Data Management (Export/Import) — not collapsible, short enough as-is -->
+     <div class="section">
+       <div class="section-title" data-i18n="sectionDataTitle">Data Management</div>
+diff --git a/src/models/Folder.ts b/src/models/Folder.ts
+index 7d1f20d..2f20af1 100644
+--- a/src/models/Folder.ts
++++ b/src/models/Folder.ts
+@@ -87,10 +87,20 @@ export const PLATFORM_CODES: Record<string, number> = {
+ export interface GlobalSetting {
+ 	td: number[];
+ 	snc: number[];
++	/**
++	 * Whether cloud sync (chrome.storage.sync) is enabled, globally across
++	 * every platform — a single on/off switch, not per-platform. 0/1 rather
++	 * than boolean to match the compact numeric style of this item, since
++	 * it's the one setting item small/stable enough to roam ahead of
++	 * everything else. Default 0: local-only until the user opts in from
++	 * the options page.
++	 */
++	cs: 0 | 1;
+ }
+ export const DEFAULT_GLOBAL_SETTING: GlobalSetting = {
+ 	td: Object.values(PLATFORM_CODES),
+ 	snc: Object.values(PLATFORM_CODES),
++	cs: 0,
+ };
+ 
+ /**
+diff --git a/src/models/FolderManager.ts b/src/models/FolderManager.ts
+index 97ba1ad..e9d2c5f 100644
+--- a/src/models/FolderManager.ts
++++ b/src/models/FolderManager.ts
+@@ -63,6 +63,32 @@ interface StoredNode {
+     isC?: 1;
+ }
+ 
++// ── Cloud sync (chrome.storage.sync) shapes ──────────────────────────────
++// See docs/features/CloudSync.md for the full design. Summary: the folder
++// STRUCTURE is shared globally across every platform/account (one tree,
++// key `acf_folders`), while which chats are filed where is tracked
++// separately, per platform+account, as small chunked items
++// (`acf_c_{platformCode}_{userId}_{idx}`) — this keeps a single account's
++// chat list from bloating the one item every other account also reads.
++
++/**
++ * chrome.storage.sync hard-caps a single item at 8192 bytes
++ * (QUOTA_BYTES_PER_ITEM). Chunks are packed under this, leaving headroom
++ * for the wrapping object/key and JSON punctuation overhead.
++ */
++const MAX_SYNC_CHUNK_BYTES = 7000;
++
++/**
++ * One chat-to-folder reference, synced per platform+account. Abbreviated
++ * keys for the same reason as StoredNode — this shape repeats once per
++ * saved chat and dominates a chunk's serialized size.
++ */
++interface SyncChatRef {
++    id: string;   // native chat id, as issued by the AI platform
++    nm: string;   // chat title
++    fid: string;  // id of the folder (in the shared tree) it's filed under
++}
++
+ /**
+  * Manager class responsible for handling storage, retrieval, modification,
+  * and advanced structural reordering (drag-and-drop) of the folder tree.
+@@ -105,6 +131,28 @@ export class FolderManager {
+         });
+     }
+ 
++    /**
++     * Reads every key currently in an area. Used for the sync-side chat-ref
++     * chunks (`acf_c_{platformCode}_{userId}_{idx}`) so their count never
++     * needs a separate meta/counter item — chrome.storage.sync's total quota
++     * (100KB) is small enough to fetch in one call and filter by prefix.
++     */
++    private static storageGetAll(area: 'local' | 'sync'): Promise<Record<string, any>> {
++        return new Promise((resolve) => {
++            this.storageArea(area).get(null, (result) => resolve(result));
++        });
++    }
++
++    private static storageRemove(area: 'local' | 'sync', keys: string[]): Promise<void> {
++        if (keys.length === 0) return Promise.resolve();
++        return new Promise((resolve, reject) => {
++            this.storageArea(area).remove(keys, () => {
++                if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
++                else resolve();
++            });
++        });
++    }
++
+ 	/**
+ 	 * Per-account key: folders + AccountSettings. Requires a resolvable
+ 	 * userId, since two accounts on the same platform must not share
+@@ -129,6 +177,9 @@ export class FolderManager {
+     static getGlobalSettingStorageKey(): string {
+         return this.GLOBAL_SETTING_KEY;
+     }
++
++    /** Single shared key for the folder-only tree, synced across every platform/account. */
++    private static readonly SYNC_FOLDERS_KEY = `${this.STORAGE_KEY_PREFIX}_folders`;
+ 	
+     static getPlatformCode(platformId: string): number | undefined {
+         return PLATFORM_CODES[platformId];
+@@ -137,11 +188,14 @@ export class FolderManager {
+ 	/**
+ 	 * Reads this account's { folders, settings, nextId } bundle from
+ 	 * chrome.storage.local, under the per-account key returned by
+-	 * getAccountStorageKey() (acf_{platform}_{userId}).
++	 * getAccountStorageKey() (acf_{platform}_{userId}). Always the LOCAL
++	 * copy, regardless of the cloud-sync toggle — used directly by
++	 * getAccountSettings()/updateAccountSettings() (settings are never
++	 * synced) and as one branch of the mode-routed getStorageData() below.
+ 	 * Missing fields are backfilled with defaults, so callers never need to
+ 	 * null-check the result.
+ 	 */
+-	private static async getStorageData(): Promise<StorageSchema> {
++	private static async getLocalStorageData(): Promise<StorageSchema> {
+ 		const key = this.getAccountStorageKey();
+ 		const result = await this.storageGet<{ f?: StoredNode[]; settings?: AccountSettings; nextId?: number }>('local', [key]);
+ 		const data = result[key] || {};
+@@ -152,7 +206,7 @@ export class FolderManager {
+ 		};
+ 	}
+ 
+-	private static async saveStorageData(data: StorageSchema): Promise<void> {
++	private static async saveLocalStorageData(data: StorageSchema): Promise<void> {
+ 		const key = this.getAccountStorageKey();
+ 		await this.storageSet('local', {
+ 			[key]: {
+@@ -163,16 +217,62 @@ export class FolderManager {
+ 		});
+ 	}
+ 
+-	// ── Account-scoped: sidebar toggles (e.g. hideChat) ──────────────────
++	/**
++	 * Cloud-mode reader: folder STRUCTURE comes from the shared
++	 * `acf_folders` item, this account's chat filing comes from its own
++	 * `acf_c_*` chunks, grafted together into the same mixed shape
++	 * getLocalStorageData() returns. `settings` is intentionally still read
++	 * from local — it's a per-device preference, not data, so it's never
++	 * routed through cloud sync either way (see docs/features/CloudSync.md).
++	 */
++	private static async getCloudStorageData(): Promise<StorageSchema> {
++		const [{ settings }, { folders, nextId }, refs] = await Promise.all([
++			this.getLocalStorageData(),
++			this.readSyncFolders(),
++			this.getCurrentAccountChatRefs(),
++		]);
++		return { folders: this.graftChatRefs(folders, refs), settings, nextId };
++	}
++
++	private static async saveCloudStorageData(data: StorageSchema): Promise<void> {
++		// Settings always persist locally, independent of storage mode.
++		const local = await this.getLocalStorageData();
++		await this.saveLocalStorageData({ ...local, settings: data.settings });
++
++		await this.writeSyncFolders(data.folders, data.nextId);
++		if (this.adapter) {
++			const userId = this.adapter.getResolvedAccountKey();
++			if (userId) {
++				await this.writeChatRefsToSync(this.adapter.platformId, userId, this.extractChatRefs(data.folders));
++			}
++		}
++	}
++
++	/**
++	 * Mode-routed entry point used by every folder-tree CRUD method below —
++	 * local and cloud are two independent stores (see the "Cloud sync"
++	 * section further down), never merged into each other. Which one this
++	 * resolves to depends solely on the global toggle at the moment of the
++	 * call.
++	 */
++	private static async getStorageData(): Promise<StorageSchema> {
++		return (await this.isCloudSyncEnabled()) ? this.getCloudStorageData() : this.getLocalStorageData();
++	}
++
++	private static async saveStorageData(data: StorageSchema): Promise<void> {
++		return (await this.isCloudSyncEnabled()) ? this.saveCloudStorageData(data) : this.saveLocalStorageData(data);
++	}
++
++	// ── Account-scoped: sidebar toggles (e.g. hideChat) — always local ───
+ 	static async getAccountSettings(): Promise<AccountSettings> {
+-		const data = await this.getStorageData();
++		const data = await this.getLocalStorageData();
+ 		return data.settings;
+ 	}
+ 
+ 	static async updateAccountSettings(partial: Partial<AccountSettings>): Promise<AccountSettings> {
+-		const data = await this.getStorageData();
++		const data = await this.getLocalStorageData();
+ 		data.settings = { ...data.settings, ...partial };
+-		await this.saveStorageData(data);
++		await this.saveLocalStorageData(data);
+ 		return data.settings;
+ 	}
+ 
+@@ -183,6 +283,7 @@ export class FolderManager {
+         return {
+             td: raw?.td ?? DEFAULT_GLOBAL_SETTING.td,
+             snc: raw?.snc ?? DEFAULT_GLOBAL_SETTING.snc,
++            cs: raw?.cs ?? DEFAULT_GLOBAL_SETTING.cs,
+         };
+     }
+ 
+@@ -193,6 +294,26 @@ export class FolderManager {
+         return updated;
+     }
+ 
++    // ── Cloud sync toggle (single global switch, all platforms) ──────────
++    static async isCloudSyncEnabled(): Promise<boolean> {
++        const setting = await this.getGlobalSetting();
++        return setting.cs === 1;
++    }
++
++    /**
++     * Flips the global cloud-sync switch. This alone is all the options
++     * page (which has no platform adapter / logged-in account context) can
++     * do — it just writes the flag to chrome.storage.sync. The flag itself
++     * then propagates to every open tab via chrome.storage.onChanged, and
++     * each tab's own content-script instance (which DOES have an adapter +
++     * resolved account) is responsible for reconciling its own account's
++     * data against the cloud the next time it sees the flag turn on — see
++     * RightSidebar's cloud-sync watcher and `syncWithCloud()` below.
++     */
++    static async setCloudSyncEnabled(enabled: boolean): Promise<void> {
++        await this.updateGlobalSetting((current) => ({ ...current, cs: enabled ? 1 : 0 }));
++    }
++
+     // ── Per-platform view over the global setting. Kept so existing callers
+     // (options page, RightSidebar) don't need to know about td/snc codes. ──
+     static async getDomainSettings(platformId?: string): Promise<DomainSettings> {
+@@ -219,6 +340,7 @@ export class FolderManager {
+         }
+ 
+         const updated = await this.updateGlobalSetting((current) => ({
++            ...current,
+             td: partial.enabled !== undefined ? withCode(current.td, code, partial.enabled) : current.td,
+             snc: partial.syncNativeChanges !== undefined ? withCode(current.snc, code, partial.syncNativeChanges) : current.snc,
+         }));
+@@ -266,6 +388,154 @@ export class FolderManager {
+ 		});
+ 	}	
+ 
++    // ── Cloud sync: folder-only tree (shared, `acf_folders`) ──────────────
++    // Local and cloud are two INDEPENDENT storage modes, not two sources
++    // reconciled into one — switching the global toggle just changes which
++    // store subsequent reads/writes target. Turning cloud sync on for the
++    // first time starts from whatever's already in `acf_folders` (empty, if
++    // no device has used it yet — the user builds their folder list fresh
++    // there); turning it back off returns to local exactly as it was left,
++    // untouched the whole time. See docs/features/CloudSync.md.
++
++    /** Same as dehydrate(), but drops chat leaves — the synced tree is pure
++     * structure. Which chats live where is tracked separately, per
++     * platform+account (see writeChatRefsToSync below). */
++    private static dehydrateFoldersOnly(nodes: FolderData[]): StoredNode[] {
++        return nodes
++            .filter(f => !f.isChat)
++            .map((f): StoredNode => {
++                const out: StoredNode = { id: f.id, nm: f.name, cl: f.color };
++                if (f.isCollapsed) out.cd = 1;
++                const children = this.dehydrateFoldersOnly(f.children || []);
++                if (children.length > 0) out.ch = children;
++                return out;
++            });
++    }
++
++    private static async readSyncFolders(): Promise<{ folders: FolderData[]; nextId: number }> {
++        const result = await this.storageGet<{ f?: StoredNode[]; nextId?: number }>('sync', [this.SYNC_FOLDERS_KEY]);
++        const data = result[this.SYNC_FOLDERS_KEY] || {};
++        return { folders: this.hydrate(data.f, null), nextId: data.nextId ?? 1 };
++    }
++
++    private static async writeSyncFolders(folders: FolderData[], nextId: number): Promise<void> {
++        await this.storageSet('sync', {
++            [this.SYNC_FOLDERS_KEY]: { f: this.dehydrateFoldersOnly(folders), nextId },
++        });
++    }
++
++    // ── Cloud sync: chat-to-folder references (per platform+account, chunked) ──
++
++    private static getChatSyncKeyPrefix(platformId: string, userId: string): string {
++        const code = PLATFORM_CODES[platformId];
++        if (code === undefined) throw new Error(`FolderManager: unknown platformId "${platformId}".`);
++        const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
++        return `${this.STORAGE_KEY_PREFIX}_c_${code}_${sanitizedUserId}_`;
++    }
++
++    /** Extracts every chat-to-folder reference out of a mixed runtime tree. */
++    private static extractChatRefs(nodes: FolderData[]): SyncChatRef[] {
++        const refs: SyncChatRef[] = [];
++        const walk = (list: FolderData[]) => {
++            for (const f of list) {
++                if (f.isChat && f.parentId) refs.push({ id: f.id, nm: f.name, fid: f.parentId });
++                if (f.children?.length) walk(f.children);
++            }
++        };
++        walk(nodes);
++        return refs;
++    }
++
++    /**
++     * Grafts chat leaves back onto a folder-only tree, reconstructing the
++     * same mixed shape the rest of the app already works with. A ref whose
++     * folder no longer exists is silently dropped — the same tolerance the
++     * rest of the codebase already has for stale references.
++     */
++    private static graftChatRefs(folderTree: FolderData[], refs: SyncChatRef[]): FolderData[] {
++        const byId = new Map<string, FolderData>();
++        const index = (list: FolderData[]) => {
++            for (const f of list) {
++                byId.set(f.id, f);
++                if (f.children?.length) index(f.children);
++            }
++        };
++        index(folderTree);
++
++        for (const ref of refs) {
++            const parent = byId.get(ref.fid);
++            if (!parent) continue; // orphaned reference — parent folder no longer exists
++            parent.children = parent.children || [];
++            if (parent.children.some(c => c.isChat && c.id === ref.id)) continue; // de-dupe
++            parent.children.push({
++                id: ref.id, name: ref.nm, color: CHAT_LEAF_COLOR_CODE,
++                parentId: ref.fid, children: [], isChat: true,
++            });
++        }
++        return folderTree;
++    }
++
++    /**
++     * Greedily packs chat refs into JSON chunks that each stay under
++     * MAX_SYNC_CHUNK_BYTES once serialized, so no single sync item exceeds
++     * chrome's per-item quota.
++     */
++    private static packChatRefs(refs: SyncChatRef[]): SyncChatRef[][] {
++        const chunks: SyncChatRef[][] = [];
++        let current: SyncChatRef[] = [];
++        for (const ref of refs) {
++            const candidate = [...current, ref];
++            const size = new TextEncoder().encode(JSON.stringify(candidate)).length;
++            if (size > MAX_SYNC_CHUNK_BYTES && current.length > 0) {
++                chunks.push(current);
++                current = [ref];
++            } else {
++                current = candidate;
++            }
++        }
++        if (current.length > 0) chunks.push(current);
++        return chunks;
++    }
++
++    /**
++     * Re-chunks and overwrites this platform+account's entire chat-ref set
++     * on chrome.storage.sync (full repack, not incremental append), then
++     * removes any now-unused trailing chunk keys — e.g. after chats were
++     * deleted and fewer chunks are needed than last time. Repacking from
++     * scratch on every write is simpler than tracking per-chunk deltas and
++     * cheap enough at the scale these lists actually reach.
++     */
++    private static async writeChatRefsToSync(platformId: string, userId: string, refs: SyncChatRef[]): Promise<void> {
++        const prefix = this.getChatSyncKeyPrefix(platformId, userId);
++        const all = await this.storageGetAll('sync');
++        const oldKeys = Object.keys(all).filter(k => k.startsWith(prefix));
++
++        const chunks = this.packChatRefs(refs);
++        const toSet: Record<string, SyncChatRef[]> = {};
++        chunks.forEach((chunk, idx) => { toSet[`${prefix}${idx}`] = chunk; });
++
++        if (Object.keys(toSet).length > 0) await this.storageSet('sync', toSet);
++        const staleKeys = oldKeys.filter(k => !(k in toSet));
++        await this.storageRemove('sync', staleKeys);
++    }
++
++    private static async readChatRefsFromSync(platformId: string, userId: string): Promise<SyncChatRef[]> {
++        const prefix = this.getChatSyncKeyPrefix(platformId, userId);
++        const all = await this.storageGetAll('sync');
++        const refs: SyncChatRef[] = [];
++        Object.keys(all).filter(k => k.startsWith(prefix)).sort()
++            .forEach(k => refs.push(...(all[k] as SyncChatRef[])));
++        return refs;
++    }
++
++    /** This account's chat refs from chrome.storage.sync, or [] if unresolvable. */
++    private static async getCurrentAccountChatRefs(): Promise<SyncChatRef[]> {
++        if (!this.adapter) return [];
++        const userId = this.adapter.getResolvedAccountKey();
++        if (!userId) return [];
++        return this.readChatRefsFromSync(this.adapter.platformId, userId);
++    }
++
+ 	/**
+      * Retrieves the entire hierarchical folder tree from local storage.
+      * @returns {Promise<FolderData[]>} A promise resolving to the array of folders.
+diff --git a/src/options.ts b/src/options.ts
+index 46bb903..571c505 100644
+--- a/src/options.ts
++++ b/src/options.ts
+@@ -81,6 +81,35 @@ async function loadSettings(): Promise<void> {
+   }
+ }
+ 
++/**
++ * Load and bind the single global cloud-sync switch. Unlike the per-platform
++ * settings above, this only ever flips the `cs` flag in the shared
++ * chrome.storage.sync setting item — it deliberately does NOT push/pull any
++ * actual folder/chat data itself, since the options page has no platform
++ * adapter and thus no resolved account to attribute that data to. The
++ * actual reconciliation happens in each open tab's content script once it
++ * notices the flag change (see RightSidebar's cloud-sync watcher).
++ */
++async function loadCloudSyncToggle(): Promise<void> {
++  const toggle = document.getElementById('cloud_sync_toggle') as HTMLInputElement | null;
++  if (!toggle) return;
++
++  try {
++    toggle.checked = await FolderManager.isCloudSyncEnabled();
++  } catch (error) {
++    console.error('[AIChatFolders] Failed to load cloud sync setting:', error);
++  }
++
++  toggle.addEventListener('change', async () => {
++    try {
++      await FolderManager.setCloudSyncEnabled(toggle.checked);
++      showToast('saved');
++    } catch (error) {
++      console.error('[AIChatFolders] Failed to save cloud sync setting:', error);
++    }
++  });
++}
++
+ /**
+  * Setup collapsible behavior for ALL sections marked with
+  * .collapsible-header[data-target]. This is generic on purpose:
+@@ -225,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
+   console.log('[AIChatFolders] Options page loaded');
+   applyI18n();
+   loadSettings();
++  loadCloudSyncToggle();
+   setupCollapsibles();
+   setupExport();
+   setupImport();
+diff --git a/src/ui/RightSidebar.ts b/src/ui/RightSidebar.ts
+index 682d429..9c105e9 100644
+--- a/src/ui/RightSidebar.ts
++++ b/src/ui/RightSidebar.ts
+@@ -58,6 +58,7 @@ export class RightSidebar {
+ 		this.AccountSettings = await FolderManager.getAccountSettings();
+ 		this.domainSettings  = await FolderManager.getDomainSettings();
+ 		this.watchDomainSettingsChanges();
++		this.watchCloudSyncChanges();
+ 		this.updateHideToggleUI();
+ 
+         await this.refresh();
+@@ -93,6 +94,36 @@ export class RightSidebar {
+ 		});
+ 	}
+ 
++	/**
++	 * Re-renders from whichever store is currently active whenever something
++	 * relevant changes on chrome.storage.sync from elsewhere:
++	 * - the global `cs` toggle flips (options page, this device or another) —
++	 *   this tab immediately starts reading from the other store, exactly as
++	 *   if the toggle had been flipped locally,
++	 * - the shared folder tree (`acf_folders`) changes on another device,
++	 * - this platform+account's own chat-ref chunks change on another
++	 *   device (`acf_c_{code}_{userId}_*`).
++	 * Local and cloud are two independent stores (see FolderManager) — this
++	 * only ever re-reads and re-renders, it never merges anything.
++	 */
++	private watchCloudSyncChanges(): void {
++		if (!this.adapter) return;
++		const settingKey = FolderManager.getGlobalSettingStorageKey();
++		const code = FolderManager.getPlatformCode(this.adapter.platformId);
++		const userId = this.adapter.getResolvedAccountKey();
++		const chatKeyPrefix = code !== undefined && userId
++			? `acf_c_${code}_${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}_`
++			: null;
++
++		chrome.storage.onChanged.addListener(async (changes, areaName) => {
++			if (areaName !== 'sync') return;
++			const relevant = !!changes[settingKey] || !!changes['acf_folders'] ||
++				(chatKeyPrefix ? Object.keys(changes).some(k => k.startsWith(chatKeyPrefix)) : false);
++			if (!relevant) return;
++			await this.refresh();
++		});
++	}
++
+ 	/**
+      * Injects custom standalone utility styling rules into the current runtime document environment head.
+      * @private

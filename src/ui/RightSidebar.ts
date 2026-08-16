@@ -58,6 +58,7 @@ export class RightSidebar {
 		this.AccountSettings = await FolderManager.getAccountSettings();
 		this.domainSettings  = await FolderManager.getDomainSettings();
 		this.watchDomainSettingsChanges();
+		this.watchCloudSyncChanges();
 		this.updateHideToggleUI();
 
         await this.refresh();
@@ -90,6 +91,36 @@ export class RightSidebar {
 				syncNativeChanges: code !== undefined ? newSetting.snc.includes(code) : DEFAULT_DOMAIN_SETTINGS.syncNativeChanges,
 			};
 			console.log('[AIChatFolders] Domain settings updated live:', this.domainSettings);
+		});
+	}
+
+	/**
+	 * Re-renders from whichever store is currently active whenever something
+	 * relevant changes on chrome.storage.sync from elsewhere:
+	 * - the global `cs` toggle flips (options page, this device or another) —
+	 *   this tab immediately starts reading from the other store, exactly as
+	 *   if the toggle had been flipped locally,
+	 * - the shared folder tree (`acf_folders`) changes on another device,
+	 * - this platform+account's own chat-ref chunks change on another
+	 *   device (`acf_c_{code}_{userId}_*`).
+	 * Local and cloud are two independent stores (see FolderManager) — this
+	 * only ever re-reads and re-renders, it never merges anything.
+	 */
+	private watchCloudSyncChanges(): void {
+		if (!this.adapter) return;
+		const settingKey = FolderManager.getGlobalSettingStorageKey();
+		const code = FolderManager.getPlatformCode(this.adapter.platformId);
+		const userId = this.adapter.getResolvedAccountKey();
+		const chatKeyPrefix = code !== undefined && userId
+			? `acf_c_${code}_${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}_`
+			: null;
+
+		chrome.storage.onChanged.addListener(async (changes, areaName) => {
+			if (areaName !== 'sync') return;
+			const relevant = !!changes[settingKey] || !!changes['acf_folders'] ||
+				(chatKeyPrefix ? Object.keys(changes).some(k => k.startsWith(chatKeyPrefix)) : false);
+			if (!relevant) return;
+			await this.refresh();
 		});
 	}
 
