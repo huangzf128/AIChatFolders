@@ -122,39 +122,40 @@ export const LayoutStyles = `
         pointer-events: none;
     }
 
+
 	/* ------------------------------ */
-	/* --- 平台专属 dock 颜色 --- */
+	/* --- Platform-specific Dock Colors --- */
 	/* ------------------------------ */
 
-	/* ChatGPT：保留原本的绿色 */
+	/* ChatGPT: Classic OpenAI green */
 	.aichat-dock-trigger.aichat-dock-chatgpt {
-	background-color: #10a37f;
+		background-color: #10a37f;
 	}
 	.aichat-dock-trigger.aichat-dock-chatgpt:hover {
-	background-color: #1a7f64;
+		background-color: #1a7f64;
 	}
 
-	/* Claude：橘黄色（贴近 Claude 品牌的 clay 色调） */
+	/* Claude: Terracotta / Clay orange */
 	.aichat-dock-trigger.aichat-dock-claude {
-	background-color: #da7756;
+		background-color: #da7756;
 	}
 	.aichat-dock-trigger.aichat-dock-claude:hover {
-	background-color: #c2653f;
+		background-color: #c2653f;
 	}
 
-	/* DeepSeek：深蓝色 */
+	/* DeepSeek: Deep blue */
 	.aichat-dock-trigger.aichat-dock-deepseek {
-	background-color: #2d63e0;
+		background-color: #2d63e0;
 	}
 	.aichat-dock-trigger.aichat-dock-deepseek:hover {
-	background-color: #2d63e0;
+		background-color: #2d63e0;
 	}
 
-	/* Gemini：红黄蓝绿渐变（Google 四色） */
+	/* Gemini: Four-color gradient (Google brand colors) */
 	.aichat-dock-trigger.aichat-dock-gemini {
-	background: linear-gradient(180deg, #ea4335 0%, #fbbc05 33%, #4285f4 66%, #34a853 100%);
+		background: linear-gradient(180deg, #ea4335 0%, #fbbc05 33%, #4285f4 66%, #34a853 100%);
 	}
 	.aichat-dock-trigger.aichat-dock-gemini:hover {
-	filter: brightness(1.15);
+		filter: brightness(1.15);
 	}	
 `;

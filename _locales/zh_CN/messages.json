@@ -18,6 +18,7 @@
   "importSuccess": { "message": "导入成功！即将刷新页面..." },
   "importFailed": { "message": "导入失败，请检查配置文件格式是否正确。" },
   "saved": { "message": "已保存！" },
+  "refreshNotice": { "message": "修改设置后，请刷新对应的页面。" },
   "footerFeedback": { "message": "遇到问题或有好的建议？" },
   "footerLink": { "message": "在 GitHub 上提交反馈" }
 }

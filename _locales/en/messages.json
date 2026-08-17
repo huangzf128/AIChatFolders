@@ -18,6 +18,7 @@
   "importSuccess": { "message": "Import succeeded! Reloading settings..." },
   "importFailed": { "message": "Failed to import. Please check if the file format is valid JSON." },
   "saved": { "message": "Saved!" },
+  "refreshNotice": { "message": "Please refresh the corresponding page after changing the settings." },
   "footerFeedback": { "message": "Having issues or have a suggestion?" },
   "footerLink": { "message": "Open an issue on GitHub" }
 }
