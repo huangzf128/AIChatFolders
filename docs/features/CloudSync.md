@@ -60,12 +60,25 @@ does not merge, migrate, or import data either direction. Off by default.
   incremental append), which trivially handles chunk count shrinking
   (deletions) at the cost of rewriting the whole set on every folder
   mutation — acceptable at the scale these lists reach in practice.
-- **`AccountSettings` (e.g. `hideChat`) is always local**, regardless of
-  storage mode — it's a per-device display preference, not folder/chat
-  data, so `getCloudStorageData()` still reads it from the local key
-  (`getLocalStorageData()`) and `saveCloudStorageData()` still writes it
-  there. This is the one place cloud mode touches `chrome.storage.local` at
-  all.
+- **`AccountSettings` (e.g. `hideChat`) follows the storage mode**, same as
+  folders/chat refs — local and cloud never touch each other here either.
+  `getAccountSettings()` / `updateAccountSettings()` branch on
+  `isCloudSyncEnabled()` directly (not through `getStorageData()` /
+  `saveStorageData()`, since folder-tree CRUD has no reason to read/write
+  settings on every call):
+  - **Local mode**: unchanged — reads/writes the `settings` field inside
+    the per-account local key (`getLocalStorageData()` /
+    `saveLocalStorageData()`).
+  - **Cloud mode**: reads/writes its own per-account sync item,
+    `acf_s_{platformCode}_{sanitizedUserId}` — no chunking, since
+    `AccountSettings` never grows large enough to need it. The `s_` prefix
+    mirrors the `c_` (chat-ref) prefix so the two key families stay easy to
+    tell apart at a glance.
+  `getCloudStorageData()` / `saveCloudStorageData()` still round-trip
+  `settings` through `StorageSchema` (reading/writing the same sync item)
+  purely so folder-tree CRUD callers passing through `getStorageData()` /
+  `saveStorageData()` don't clobber it — actually changing it always goes
+  through `getAccountSettings()` / `updateAccountSettings()`.
 - **Live cross-device/tab updates, no merge on receipt.**
   `RightSidebar.watchCloudSyncChanges()` listens on
   `chrome.storage.onChanged` for the `sync` area and simply calls
@@ -100,8 +113,13 @@ does not merge, migrate, or import data either direction. Off by default.
   always-local pair); `getCloudStorageData` / `saveCloudStorageData`; the
   mode-routed `getStorageData` / `saveStorageData`; `dehydrateFoldersOnly`,
   `extractChatRefs` / `graftChatRefs`, `packChatRefs`, `readSyncFolders` /
-  `writeSyncFolders`, `readChatRefsFromSync` / `writeChatRefsToSync`.
-- `src/ui/RightSidebar.ts` — `watchCloudSyncChanges`.
+  `writeSyncFolders`, `readChatRefsFromSync` / `writeChatRefsToSync`; the
+  mode-routed `getAccountSettings` / `updateAccountSettings`, plus
+  `getAccountSettingsSyncKey` / `getSyncAccountSettings` /
+  `saveSyncAccountSettings` for the cloud-mode branch.
+- `src/ui/RightSidebar.ts` — `watchCloudSyncChanges` (also re-reads
+  `AccountSettings` and refreshes the hide-toggle UI when this account's
+  `acf_s_*` item changes on another device).
 - `src/options.ts`, `options.html`, `_locales/*/messages.json` — the single
   global toggle UI.
 
@@ -128,6 +146,7 @@ does not merge, migrate, or import data either direction. Off by default.
 | Date | Commit | Description |
 |------|--------|--------------|
 | 2026-08-15 | `<commit-hash>` | Initial implementation: global cloud-sync toggle; two fully independent storage modes (no merge) routed through `FolderManager.getStorageData()`/`saveStorageData()`; shared folder-tree sync (`acf_folders`); per-account chunked chat-ref sync (`acf_c_*`). |
+| 2026-08-17 | `<commit-hash>` | `AccountSettings` (e.g. `hideChat`) now follows the storage mode instead of always being local — cloud mode reads/writes its own per-account `acf_s_{platformCode}_{userId}` sync item. `RightSidebar.watchCloudSyncChanges()` now also picks up cross-device changes to this item and refreshes the hide-toggle UI. |
 
 ## TODO
 - [ ] Extend Export/Import JSON to cover cloud-mode data.

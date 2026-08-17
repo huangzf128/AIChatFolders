@@ -220,14 +220,13 @@ export class FolderManager {
 	/**
 	 * Cloud-mode reader: folder STRUCTURE comes from the shared
 	 * `acf_folders` item, this account's chat filing comes from its own
-	 * `acf_c_*` chunks, grafted together into the same mixed shape
-	 * getLocalStorageData() returns. `settings` is intentionally still read
-	 * from local — it's a per-device preference, not data, so it's never
-	 * routed through cloud sync either way (see docs/features/CloudSync.md).
+	 * `acf_c_*` chunks, and `settings` comes from its own `acf_s_*` item —
+	 * all grafted together into the same mixed shape getLocalStorageData()
+	 * returns (see docs/features/CloudSync.md).
 	 */
 	private static async getCloudStorageData(): Promise<StorageSchema> {
-		const [{ settings }, { folders, nextId }, refs] = await Promise.all([
-			this.getLocalStorageData(),
+		const [settings, { folders, nextId }, refs] = await Promise.all([
+			this.getSyncAccountSettings(),
 			this.readSyncFolders(),
 			this.getCurrentAccountChatRefs(),
 		]);
@@ -235,9 +234,12 @@ export class FolderManager {
 	}
 
 	private static async saveCloudStorageData(data: StorageSchema): Promise<void> {
-		// Settings always persist locally, independent of storage mode.
-		const local = await this.getLocalStorageData();
-		await this.saveLocalStorageData({ ...local, settings: data.settings });
+		// AccountSettings now follows the storage mode too (see the
+		// "Cloud sync: per-account AccountSettings" section below), so it is
+		// round-tripped here purely so folder-tree CRUD callers going through
+		// getStorageData()/saveStorageData() don't accidentally clobber it.
+		// To actually change it, use getAccountSettings()/updateAccountSettings().
+		await this.saveSyncAccountSettings(data.settings);
 
 		await this.writeSyncFolders(data.folders, data.nextId);
 		if (this.adapter) {
@@ -263,17 +265,72 @@ export class FolderManager {
 		return (await this.isCloudSyncEnabled()) ? this.saveCloudStorageData(data) : this.saveLocalStorageData(data);
 	}
 
-	// ── Account-scoped: sidebar toggles (e.g. hideChat) — always local ───
+	// ── Account-scoped: sidebar toggles (e.g. hideChat) — follows storage mode ──
+	// Same principle as folders/chat refs: local and cloud never touch each
+	// other. Local mode keeps reading/writing the per-account local key
+	// exactly as before; cloud mode reads/writes its own sync item instead
+	// (see "Cloud sync: per-account AccountSettings" below).
 	static async getAccountSettings(): Promise<AccountSettings> {
+		if (await this.isCloudSyncEnabled()) {
+			return this.getSyncAccountSettings();
+		}
 		const data = await this.getLocalStorageData();
 		return data.settings;
 	}
 
 	static async updateAccountSettings(partial: Partial<AccountSettings>): Promise<AccountSettings> {
+		if (await this.isCloudSyncEnabled()) {
+			const current = await this.getSyncAccountSettings();
+			const updated = { ...current, ...partial };
+			await this.saveSyncAccountSettings(updated);
+			return updated;
+		}
 		const data = await this.getLocalStorageData();
 		data.settings = { ...data.settings, ...partial };
 		await this.saveLocalStorageData(data);
 		return data.settings;
+	}
+
+	// ── Cloud sync: per-account AccountSettings (e.g. hideChat) ───────────
+	// Unlike chat refs, AccountSettings never grows large enough to need
+	// chunking — one small item per platform+account is enough. Key uses
+	// the same `{code}_{sanitizedUserId}` shape as chat-ref keys, but with
+	// an `s_` (settings) prefix instead of `c_` (chat), so the two key
+	// families never collide and stay easy to tell apart at a glance.
+
+	/** Sync-mode key for this account's AccountSettings. Exposed (not
+	 * private) so RightSidebar's live-update watcher can compute the same
+	 * key without duplicating the `s_{code}_{sanitizedUserId}` shape. */
+	static getAccountSettingsSyncKey(platformId: string, userId: string): string {
+		const code = PLATFORM_CODES[platformId];
+		if (code === undefined) throw new Error(`FolderManager: unknown platformId "${platformId}".`);
+		const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return `${this.STORAGE_KEY_PREFIX}_s_${code}_${sanitizedUserId}`;
+	}
+
+	private static async getSyncAccountSettings(): Promise<AccountSettings> {
+		if (!this.adapter) {
+			throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
+		}
+		const userId = this.adapter.getResolvedAccountKey();
+		if (!userId) {
+			throw new Error('Cannot resolve settings key: User is not logged in.');
+		}
+		const key = this.getAccountSettingsSyncKey(this.adapter.platformId, userId);
+		const result = await this.storageGet<Partial<AccountSettings>>('sync', [key]);
+		return { ...DEFAULT_ACCOUNT_SETTINGS, ...(result[key] || {}) };
+	}
+
+	private static async saveSyncAccountSettings(settings: AccountSettings): Promise<void> {
+		if (!this.adapter) {
+			throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
+		}
+		const userId = this.adapter.getResolvedAccountKey();
+		if (!userId) {
+			throw new Error('Cannot resolve settings key: User is not logged in.');
+		}
+		const key = this.getAccountSettingsSyncKey(this.adapter.platformId, userId);
+		await this.storageSet('sync', { [key]: settings });
 	}
 
     // ── Global setting: one shared { td, snc } item across ALL platforms ───

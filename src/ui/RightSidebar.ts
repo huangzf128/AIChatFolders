@@ -102,7 +102,9 @@ export class RightSidebar {
 	 *   if the toggle had been flipped locally,
 	 * - the shared folder tree (`acf_folders`) changes on another device,
 	 * - this platform+account's own chat-ref chunks change on another
-	 *   device (`acf_c_{code}_{userId}_*`).
+	 *   device (`acf_c_{code}_{userId}_*`),
+	 * - this platform+account's own AccountSettings item (e.g. hideChat)
+	 *   changes on another device (`acf_s_{code}_{userId}`).
 	 * Local and cloud are two independent stores (see FolderManager) — this
 	 * only ever re-reads and re-renders, it never merges anything.
 	 */
@@ -114,13 +116,25 @@ export class RightSidebar {
 		const chatKeyPrefix = code !== undefined && userId
 			? `acf_c_${code}_${userId.replace(/[^a-zA-Z0-9_-]/g, '_')}_`
 			: null;
+		const accountSettingsKey = userId
+			? FolderManager.getAccountSettingsSyncKey(this.adapter.platformId, userId)
+			: null;
 
 		chrome.storage.onChanged.addListener(async (changes, areaName) => {
 			if (areaName !== 'sync') return;
-			const relevant = !!changes[settingKey] || !!changes['acf_folders'] ||
+			const accountSettingsChanged = accountSettingsKey ? !!changes[accountSettingsKey] : false;
+			const relevant = !!changes[settingKey] || !!changes['acf_folders'] || accountSettingsChanged ||
 				(chatKeyPrefix ? Object.keys(changes).some(k => k.startsWith(chatKeyPrefix)) : false);
 			if (!relevant) return;
+
+			// AccountSettings isn't part of refresh()'s own re-read (it only
+			// pulls folders), so pick it up explicitly here. refresh() runs
+			// first since applyHideToAllRows() below depends on the
+			// freshly-rebuilt savedChatIds it populates.
+			this.AccountSettings = await FolderManager.getAccountSettings();
 			await this.refresh();
+			this.updateHideToggleUI();
+			this.applyHideToAllRows();
 		});
 	}
 
