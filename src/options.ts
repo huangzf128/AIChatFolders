@@ -151,13 +151,65 @@ function setupCollapsibles(): void {
 }
 
 /**
- * Handle configuration JSON export
+ * The three independently-selectable data categories, mirroring the three
+ * storage locations described in docs/features/CloudSync.md:
+ * - common: the single shared { td, snc, cs } item on chrome.storage.sync
+ *   (acf_setting).
+ * - syncFolders: every other acf_* key on chrome.storage.sync (acf_folders,
+ *   acf_c_*, acf_s_*) — the folder tree + per-account chat filing + account
+ *   settings used while cloud sync is active.
+ * - localFolders: every acf_* key on chrome.storage.local — the per-account
+ *   folder tree + settings used while cloud sync is off.
+ */
+interface CategorySelection {
+	common: boolean;
+	syncFolders: boolean;
+	localFolders: boolean;
+}
+
+/** Reads the checked state of a category checkbox trio sharing the given id prefix. */
+function readCategorySelection(idPrefix: 'export' | 'import'): CategorySelection {
+	const isChecked = (id: string): boolean => (document.getElementById(id) as HTMLInputElement | null)?.checked ?? false;
+	return {
+		common: isChecked(`${idPrefix}_common`),
+		syncFolders: isChecked(`${idPrefix}_syncFolders`),
+		localFolders: isChecked(`${idPrefix}_localFolders`),
+	};
+}
+
+/**
+ * Splits a raw chrome.storage.sync snapshot into the "common settings" item
+ * (acf_setting) and everything else (folder tree + chat refs + per-account
+ * settings), both filtered to acf_* keys only.
+ */
+function splitSyncData(syncData: Record<string, any>): { commonSettings: Record<string, any>; syncFolders: Record<string, any> } {
+	const settingKey = FolderManager.getGlobalSettingStorageKey();
+	const commonSettings: Record<string, any> = {};
+	const syncFolders: Record<string, any> = {};
+	for (const [key, value] of Object.entries(syncData)) {
+		if (!key.startsWith('acf_')) continue;
+		if (key === settingKey) commonSettings[key] = value;
+		else syncFolders[key] = value;
+	}
+	return { commonSettings, syncFolders };
+}
+
+/**
+ * Handle configuration JSON export. Only the categories the user has
+ * checked (see the Export checkboxes in options.html) are included in the
+ * resulting file.
  */
 function setupExport(): void {
 	const exportBtn = document.getElementById('exportBtn');
 	if (!exportBtn) return;
 
 	exportBtn.addEventListener('click', async () => {
+		const selection = readCategorySelection('export');
+		if (!selection.common && !selection.syncFolders && !selection.localFolders) {
+			alert(chrome.i18n.getMessage('exportNothingSelected') || 'Please select at least one data category to export.');
+			return;
+		}
+
 		try {
 			const [localData, syncData] = await Promise.all([
 				chrome.storage.local.get(null),
@@ -172,10 +224,15 @@ function setupExport(): void {
 				return out;
 			};
 
-			const payload = {
-				local: filterAcf(localData),
-				sync: filterAcf(syncData),
-			};
+			const { commonSettings, syncFolders } = splitSyncData(syncData);
+
+			// Only categories the user checked are written into the payload at
+			// all — an unchecked category doesn't even appear as an empty key,
+			// so a re-import of this file can't accidentally wipe it.
+			const payload: { commonSettings?: Record<string, any>; syncFolders?: Record<string, any>; localFolders?: Record<string, any> } = {};
+			if (selection.common) payload.commonSettings = commonSettings;
+			if (selection.syncFolders) payload.syncFolders = syncFolders;
+			if (selection.localFolders) payload.localFolders = filterAcf(localData);
 
 			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 			const url = URL.createObjectURL(blob);
@@ -192,7 +249,39 @@ function setupExport(): void {
 }
 
 /**
- * Handle configuration JSON import
+ * Normalizes any supported export file shape into the same three-category
+ * view ({ commonSettings, syncFolders, localFolders }), so the rest of the
+ * import logic never needs to know which shape the file originally used:
+ * - Current shape: already split into the three categories by setupExport()
+ *   above (any subset of the three keys may be present, since export only
+ *   includes the categories the user had checked).
+ * - Legacy shape: { local, sync } (or a bare flat object that IS the local
+ *   part, from before the { local, sync } split existed). The sync part is
+ *   further split into commonSettings/syncFolders using the same acf_setting
+ *   key check as splitSyncData() above.
+ */
+function normalizeImportPayload(parsed: any): { commonSettings: Record<string, any>; syncFolders: Record<string, any>; localFolders: Record<string, any> } {
+	if (parsed.commonSettings || parsed.syncFolders || parsed.localFolders) {
+		return {
+			commonSettings: parsed.commonSettings || {},
+			syncFolders: parsed.syncFolders || {},
+			localFolders: parsed.localFolders || {},
+		};
+	}
+
+	const localPart: Record<string, any> = (parsed.local && typeof parsed.local === 'object') ? parsed.local : parsed;
+	const syncPart: Record<string, any> = (parsed.sync && typeof parsed.sync === 'object') ? parsed.sync : {};
+	const { commonSettings, syncFolders } = splitSyncData(syncPart);
+
+	return { commonSettings, syncFolders, localFolders: localPart };
+}
+
+/**
+ * Handle configuration JSON import. Only categories that are BOTH present
+ * in the file AND checked by the user (see the Import checkboxes in
+ * options.html) are written — a category missing from the file is simply a
+ * no-op even if checked, and an unchecked category is skipped even if the
+ * file has it.
  */
 function setupImport(): void {
 	const importBtn = document.getElementById('importBtn');
@@ -208,6 +297,13 @@ function setupImport(): void {
 		const file = target.files?.[0];
 		if (!file) return;
 
+		const selection = readCategorySelection('import');
+		if (!selection.common && !selection.syncFolders && !selection.localFolders) {
+			alert(chrome.i18n.getMessage('importNothingSelected') || 'Please select at least one data category to import.');
+			target.value = '';
+			return;
+		}
+
 		const reader = new FileReader();
 		reader.onload = async (e: ProgressEvent<FileReader>) => {
 		try {
@@ -218,21 +314,24 @@ function setupImport(): void {
 			throw new Error('Invalid data format: not an object.');
 			}
 
-			// Support both the new { local, sync } export shape and a legacy
-			// flat export (everything used to live in chrome.storage.local).
-			const localPart: Record<string, any> = (parsed.local && typeof parsed.local === 'object') ? parsed.local : parsed;
-			const syncPart: Record<string, any> = (parsed.sync && typeof parsed.sync === 'object') ? parsed.sync : {};
+			const normalized = normalizeImportPayload(parsed);
+
+			const localToWrite: Record<string, any> = selection.localFolders ? normalized.localFolders : {};
+			const syncToWrite: Record<string, any> = {
+				...(selection.common ? normalized.commonSettings : {}),
+				...(selection.syncFolders ? normalized.syncFolders : {}),
+			};
 
 			const hasValidKeys =
-			Object.keys(localPart).some((key) => key.startsWith('acf_')) ||
-			Object.keys(syncPart).some((key) => key.startsWith('acf_'));
+			Object.keys(localToWrite).some((key) => key.startsWith('acf_')) ||
+			Object.keys(syncToWrite).some((key) => key.startsWith('acf_'));
 			if (!hasValidKeys) {
-			throw new Error('No valid AIChatFolders data found in the file.');
+			throw new Error('No valid AIChatFolders data found for the selected categories.');
 			}
 
 			await Promise.all([
-			Object.keys(localPart).length ? chrome.storage.local.set(localPart) : Promise.resolve(),
-			Object.keys(syncPart).length ? chrome.storage.sync.set(syncPart) : Promise.resolve(),
+			Object.keys(localToWrite).length ? chrome.storage.local.set(localToWrite) : Promise.resolve(),
+			Object.keys(syncToWrite).length ? chrome.storage.sync.set(syncToWrite) : Promise.resolve(),
 			]);
 
 			const successMsg = chrome.i18n.getMessage('importSuccess') || 'Import succeeded! Reloading...';

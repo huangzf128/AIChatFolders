@@ -385,7 +385,7 @@
     <div class="section">
       <div class="section-title" style="margin-bottom: 4px;" data-i18n="sectionCloudSyncTitle">Cloud Sync</div>
       <div class="section-desc" data-i18n="cloudSyncDesc">Sync your folders and saved chats across your devices via your browser's own sign-in sync. Off by default.</div>
-
+      
       <div class="setting-row">
         <span class="platform-name" data-i18n="cloudSyncToggleLabel">Sync across devices</span>
         <label class="switch">
@@ -393,26 +393,57 @@
           <span class="slider"></span>
         </label>
       </div>
+
+        <div class="notice">
+          <span class="notice-icon">&#9432;</span>
+		  <span data-i18n="cloudSyncWikiHint">For details, see the</span> <a href="https://github.com/huangzf128/AIChatFolders/wiki" target="_blank" rel="noopener noreferrer">Cloud Sync</a> <span data-i18n="cloudSyncWikiHintTopic">topic on the Wiki.</span>
+        </div>
+
     </div>
 
     <!-- Data Management (Export/Import) — not collapsible, short enough as-is -->
     <div class="section">
       <div class="section-title" data-i18n="sectionDataTitle">Data Management</div>
+      <div class="section-desc" data-i18n="dataCategoriesDesc">Choose which data categories to include when exporting or importing.</div>
 
-      <div class="setting-row">
+      <!-- Export -->
+      <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
         <div>
           <div class="platform-name" data-i18n="exportConfig">Export JSON</div>
           <div class="section-desc" style="margin-bottom: 0; margin-top: 2px;" data-i18n="exportDesc">Export all folders and node structures to a JSON file</div>
         </div>
-        <button class="btn" id="exportBtn" data-i18n="exportConfig">Export JSON</button>
+
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="export_common" checked> <span data-i18n="categoryCommonSettings">Common Settings</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="export_syncFolders" checked> <span data-i18n="categorySyncFolders">Folder Data (Cloud Sync)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="export_localFolders" checked> <span data-i18n="categoryLocalFolders">Folder Data (Local)</span>
+        </label>
+
+        <button class="btn" id="exportBtn" data-i18n="exportConfig" style="margin-top: 4px;">Export JSON</button>
       </div>
 
-      <div class="setting-row">
+      <!-- Import -->
+      <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 10px; border-bottom: none;">
         <div>
           <div class="platform-name" data-i18n="importConfig">Import JSON</div>
           <div class="section-desc" style="margin-bottom: 0; margin-top: 2px;" data-i18n="importDesc">Restore folder structure from a JSON config file</div>
         </div>
-        <button class="btn" id="importBtn" data-i18n="importConfig">Import JSON</button>
+
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="import_common" checked> <span data-i18n="categoryCommonSettings">Common Settings</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="import_syncFolders" checked> <span data-i18n="categorySyncFolders">Folder Data (Cloud Sync)</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="import_localFolders" checked> <span data-i18n="categoryLocalFolders">Folder Data (Local)</span>
+        </label>
+
+        <button class="btn" id="importBtn" data-i18n="importConfig" style="margin-top: 4px;">Import JSON</button>
         <input type="file" id="fileInput" accept=".json" style="display: none;">
       </div>
     </div>
