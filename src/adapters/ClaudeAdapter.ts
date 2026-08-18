@@ -24,7 +24,7 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
     // Selector for Claude's action menu container (adjust selector based on actual DOM inspection)
     itemSelector = '[role="menu"] div:first-child';
 	protected override historySelector = 'div.flex.flex-col';
-	protected override rowSelector = 'li';
+	protected override rowSelector = 'div[data-row-key]';
 	protected override linkSelector = 'a[href*="/chat/"]';
 
 	constructor() {
@@ -46,7 +46,7 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 	*/
 	protected override getRowTitle(linkEl: HTMLElement | null): string {
 		// Prefer targeting the main title container (works for most AI sidebars)
-		const innerSpan = linkEl?.querySelector('span.block.truncate');
+		const innerSpan = linkEl?.querySelector('span.flex-1 span.inline-block');
 		if (innerSpan && innerSpan.textContent) {
 			return innerSpan.textContent.trim();
 		}
@@ -57,7 +57,7 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 	// Claude's "Show more" expanded history view replaces the main chat panel
 	// with a <table data-cds="DataTable"> listing recent chats — structurally
 	// unrelated to the sidebar, so historySelector/rowSelector never match it.
-	private readonly expandedHistoryRowSelector = '#main-content table[data-cds="Table"] tr';
+	private readonly expandedHistoryRowSelector = 'div.dframe-content-inner table[data-cds="Table"] tr';
 	private readonly expandedHistoryLinkSelector = 'a[href*="/chat/"]';
 
 	/**
