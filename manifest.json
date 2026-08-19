@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "AI Chat Folders",
-	"version": "1.1.1",
+	"version": "1.2.0",
 	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoc0bxQaB69CukxskqS98pGIKzvqVdnAyuUK+QtlphuUFXkZM3DqOHs98l7UOoPJIZHp3O6XEAOsBeZUdeZX1cpmX06Q9xoLvHx4KS1XRZE/EQpubnQ2vFQexnqY4CexqvCvCp5kI/rijjr5RjLuAKVIdo8xfNjVoJ6mHcOi/LOoqGEGTmpnBzyNPOwE4Y8gMab4sT5L0mCxLkryLcw0XXFHCBIpqUr6IuoQC1B0X1px4QQL3WJMHuK7fp967907Nba5lV9n9EgKD7OKxlFBH0Np8bqdYg7VVtQjir9rDZYsEgcoCrB+Hiz/6V/1ubqNE+NCS85NGnushX6HNvM7+7wIDAQAB",
 	"description": "Manage your AI chats with folders.",
 	"permissions": ["storage"],
