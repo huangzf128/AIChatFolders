@@ -122,6 +122,64 @@ export const LayoutStyles = `
         pointer-events: none;
     }
 
+    /* One-shot onboarding hint: draws attention to the dock trigger for
+       first-time users who might not notice the thin edge tab. Purely
+       visual — no state, driven entirely by class add/remove in
+       RightSidebar.maybeShowDockHint(). Uses a single-pulse keyframe
+       played 8 times (iteration-count) instead of encoding every pulse
+       in the keyframe — much cleaner and all pulses are identical. */
+    @keyframes aichat-dock-hint-pulse {
+        0%, 70%, 100% {
+            transform: translateY(-50%);
+            width: 10px;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.2);
+        }
+        30%, 50% {
+            transform: translateY(-50%);
+            width: 40px;
+            box-shadow: -6px 0 28px var(--dock-glow, rgba(16,163,127,0.7));
+        }
+    }
+    .aichat-dock-trigger.aichat-dock-hint {
+        animation: aichat-dock-hint-pulse 1.2s ease-in-out 5;
+        animation-delay: 1s;
+    }
+
+    /* Laser beams shooting up/down from the dock, synchronized with the
+       width expansion pulses. Uses ::before (up) and ::after (down) so
+       no extra DOM elements are needed. Same single-pulse × 8 pattern. */
+    .aichat-dock-trigger.aichat-dock-hint::before,
+    .aichat-dock-trigger.aichat-dock-hint::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        width: 8px;
+        height: 0;
+        border-radius: 4px;
+        pointer-events: none;
+        animation: aichat-dock-laser-pulse 1.2s ease-in-out 5;
+        animation-delay: 1s;
+    }
+    .aichat-dock-trigger.aichat-dock-hint::before {
+        bottom: 100%;
+        background: linear-gradient(to top, var(--dock-laser, #10a37f), transparent);
+        box-shadow: 0 -8px 18px var(--dock-glow, rgba(16,163,127,0.7)),
+                    0 -8px 36px var(--dock-glow, rgba(16,163,127,0.35));
+    }
+    .aichat-dock-trigger.aichat-dock-hint::after {
+        top: 100%;
+        background: linear-gradient(to bottom, var(--dock-laser, #10a37f), transparent);
+        box-shadow: 0 8px 18px var(--dock-glow, rgba(16,163,127,0.7)),
+                    0 8px 36px var(--dock-glow, rgba(16,163,127,0.35));
+    }
+    @keyframes aichat-dock-laser-pulse {
+        0%, 15%   { height: 0;    opacity: 0; }
+        30%       { height: 320px; opacity: 1; }
+        50%       { height: 320px; opacity: 0.7; }
+        70%       { height: 0;    opacity: 0; }
+        100%      { height: 0;    opacity: 0; }
+    }
+
 
 	/* ------------------------------ */
 	/* --- Platform-specific Dock Colors --- */
@@ -130,6 +188,8 @@ export const LayoutStyles = `
 	/* ChatGPT: Classic OpenAI green */
 	.aichat-dock-trigger.aichat-dock-chatgpt {
 		background-color: #10a37f;
+		--dock-glow: rgba(16,163,127,0.6);
+		--dock-laser: #10a37f;
 	}
 	.aichat-dock-trigger.aichat-dock-chatgpt:hover {
 		background-color: #1a7f64;
@@ -138,6 +198,8 @@ export const LayoutStyles = `
 	/* Claude: Terracotta / Clay orange */
 	.aichat-dock-trigger.aichat-dock-claude {
 		background-color: #da7756;
+		--dock-glow: rgba(218,119,86,0.6);
+		--dock-laser: #da7756;
 	}
 	.aichat-dock-trigger.aichat-dock-claude:hover {
 		background-color: #c2653f;
@@ -146,6 +208,8 @@ export const LayoutStyles = `
 	/* DeepSeek: Deep blue */
 	.aichat-dock-trigger.aichat-dock-deepseek {
 		background-color: #2d63e0;
+		--dock-glow: rgba(45,99,224,0.6);
+		--dock-laser: #2d63e0;
 	}
 	.aichat-dock-trigger.aichat-dock-deepseek:hover {
 		background-color: #2d63e0;
@@ -154,6 +218,8 @@ export const LayoutStyles = `
 	/* Gemini: Four-color gradient (Google brand colors) */
 	.aichat-dock-trigger.aichat-dock-gemini {
 		background: linear-gradient(180deg, #ea4335 0%, #fbbc05 33%, #4285f4 66%, #34a853 100%);
+		--dock-glow: rgba(66,133,244,0.6);
+		--dock-laser: #4285f4;
 	}
 	.aichat-dock-trigger.aichat-dock-gemini:hover {
 		filter: brightness(1.15);

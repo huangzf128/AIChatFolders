@@ -38,9 +38,12 @@ export type NativeChangeType = 'delete' | 'rename';
 export interface AccountSettings {
 	/** Whether chats already saved to a folder should be hidden from the native sidebar. */
 	hideChat: boolean;
+	/** Whether the one-time dock-trigger onboarding hint has already been shown to this account. */
+	hasSeenDockHint: boolean;
 }
 export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   	hideChat: false,
+	hasSeenDockHint: false,
 };
 
 /**

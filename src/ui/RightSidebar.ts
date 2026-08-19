@@ -62,6 +62,7 @@ export class RightSidebar {
 		this.updateHideToggleUI();
 
         await this.refresh();
+		await this.maybeShowDockHint();
 
 		// Start watching BEFORE the manual pass below. Any mutation that happens
 		// in between (e.g. the native sidebar still hydrating) is never missed —
@@ -69,6 +70,34 @@ export class RightSidebar {
 		this.startObservingNativeSidebar();
 		this.applyHideToAllRows(); // handle whatever native rows are already in the DOM right now		
     }
+
+	/**
+	 * Plays a one-time attention animation on the dock trigger for accounts
+	 * that have never saved anything to a folder yet, so first-time users
+	 * notice the edge tab instead of missing the extension entirely.
+	 * Gated by a persisted per-account flag (`hasSeenDockHint`) — this only
+	 * ever fires once per account, even if the user later empties out their
+	 * folders again. Must run after `refresh()`, since it depends on the
+	 * freshly-rebuilt `savedChatIds`.
+	 * @private
+	 */
+	private async maybeShowDockHint(): Promise<void> {
+		if (this.AccountSettings.hasSeenDockHint) return;
+
+		if (this.savedChatIds.size > 0) {
+			// Not actually a first-time user (e.g. imported data) — mark as
+			// seen without animating, so this check doesn't keep re-running.
+			this.AccountSettings = await FolderManager.updateAccountSettings({ hasSeenDockHint: true });
+			return;
+		}
+
+		this.dock?.classList.add('aichat-dock-hint');
+		this.dock?.addEventListener('animationend', () => {
+			this.dock?.classList.remove('aichat-dock-hint');
+		}, { once: true });
+
+		this.AccountSettings = await FolderManager.updateAccountSettings({ hasSeenDockHint: true });
+	}
 
 /**
 	 * Keeps the in-memory domainSettings cache in sync with the shared
