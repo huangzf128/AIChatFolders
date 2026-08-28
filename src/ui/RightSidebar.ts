@@ -35,6 +35,17 @@ export class RightSidebar {
 	// Batches multiple mutation callbacks into a single DOM pass per animation frame.
 	private applyScheduled = false;
 
+	// Debounces bursts of chrome.storage.onChanged events that stem from a
+	// SINGLE logical cloud-sync operation being split across multiple
+	// physical acf_* keys (e.g. deleting a folder that contains chats
+	// touches both acf_folders and acf_c_*, each firing its own onChanged
+	// event). Only watchCloudSyncChanges() goes through this timer —
+	// interactive callers (button clicks, saving a chat) keep calling
+	// refresh() directly and unthrottled, since they need the render to
+	// land immediately so follow-up DOM work (flashNode, showEditor, ...)
+	// can rely on it.
+	private cloudChangeRefreshTimer: number | null = null;
+
 	/**
      * Constructs the RightSidebar interface component.
      * @param {LeftSidebarAdapter | null} adapter - Platform operational binder link.
@@ -149,13 +160,33 @@ export class RightSidebar {
 			? FolderManager.getAccountSettingsSyncKey(this.adapter.platformId, userId)
 			: null;
 
-		chrome.storage.onChanged.addListener(async (changes, areaName) => {
+		chrome.storage.onChanged.addListener((changes, areaName) => {
 			if (areaName !== 'sync') return;
 			const accountSettingsChanged = accountSettingsKey ? !!changes[accountSettingsKey] : false;
 			const relevant = !!changes[settingKey] || !!changes['acf_folders'] || accountSettingsChanged ||
 				(chatKeyPrefix ? Object.keys(changes).some(k => k.startsWith(chatKeyPrefix)) : false);
 			if (!relevant) return;
 
+			this.scheduleRefreshFromCloudChange();
+		});
+	}
+
+	/**
+	 * Debounced entry point for refreshes triggered by
+	 * chrome.storage.onChanged (see cloudChangeRefreshTimer above). A single
+	 * cloud-sync write (e.g. deleting a folder with chats in it) can touch
+	 * several acf_* keys, each firing its own onChanged event in quick
+	 * succession; without debouncing, each of those events would trigger
+	 * its own full refresh() + render(), redundantly rebuilding the same
+	 * final tree multiple times. Every call here resets the timer, so only
+	 * the last event in a burst actually runs a refresh — once storage.sync
+	 * has settled, not once per individual key change.
+	 * @private
+	 */
+	private scheduleRefreshFromCloudChange(): void {
+		if (this.cloudChangeRefreshTimer) window.clearTimeout(this.cloudChangeRefreshTimer);
+		this.cloudChangeRefreshTimer = window.setTimeout(async () => {
+			this.cloudChangeRefreshTimer = null;
 			// AccountSettings isn't part of refresh()'s own re-read (it only
 			// pulls folders), so pick it up explicitly here. refresh() runs
 			// first since applyHideToAllRows() below depends on the
@@ -164,7 +195,7 @@ export class RightSidebar {
 			await this.refresh();
 			this.updateHideToggleUI();
 			this.applyHideToAllRows();
-		});
+		}, 500);
 	}
 
 	/**
