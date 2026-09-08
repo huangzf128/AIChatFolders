@@ -112,11 +112,13 @@ does not merge, migrate, or import data either direction. Off by default.
   `getLocalStorageData` / `saveLocalStorageData` (renamed from the original
   always-local pair); `getCloudStorageData` / `saveCloudStorageData`; the
   mode-routed `getStorageData` / `saveStorageData`; `dehydrateFoldersOnly`,
-  `extractChatRefs` / `graftChatRefs`, `packChatRefs`, `readSyncFolders` /
-  `writeSyncFolders`, `readChatRefsFromSync` / `writeChatRefsToSync`; the
-  mode-routed `getAccountSettings` / `updateAccountSettings`, plus
+  `extractChatRefs` / `graftChatRefs`, `packChatRefs`, `readSyncFolders`,
+  `readChatRefsFromSync` / `buildChatRefSyncPlan`; the mode-routed
+  `getAccountSettings` / `updateAccountSettings`, plus
   `getAccountSettingsSyncKey` / `getSyncAccountSettings` /
-  `saveSyncAccountSettings` for the cloud-mode branch.
+  `saveSyncAccountSettings` for the cloud-mode branch; `ownSyncWrites` /
+  `isOwnSyncEcho` (self-write echo tracking, shared by every `storageSet`/
+  `storageRemove` call against `sync`).
 - `src/ui/RightSidebar.ts` — `watchCloudSyncChanges` (also re-reads
   `AccountSettings` and refreshes the hide-toggle UI when this account's
   `acf_s_*` item changes on another device).
@@ -147,6 +149,8 @@ does not merge, migrate, or import data either direction. Off by default.
 |------|--------|--------------|
 | 2026-08-15 | `<commit-hash>` | Initial implementation: global cloud-sync toggle; two fully independent storage modes (no merge) routed through `FolderManager.getStorageData()`/`saveStorageData()`; shared folder-tree sync (`acf_folders`); per-account chunked chat-ref sync (`acf_c_*`). |
 | 2026-08-17 | `<commit-hash>` | `AccountSettings` (e.g. `hideChat`) now follows the storage mode instead of always being local — cloud mode reads/writes its own per-account `acf_s_{platformCode}_{userId}` sync item. `RightSidebar.watchCloudSyncChanges()` now also picks up cross-device changes to this item and refreshes the hide-toggle UI. |
+| 2026-08-28 | `<commit-hash>` | `RightSidebar.watchCloudSyncChanges()` now debounces (500ms) bursts of `onChanged` events that stem from a single logical cloud-sync write touching multiple physical `acf_*` keys, instead of refreshing once per key. |
+| 2026-09-06 | `<commit-hash>` | Fixed a self-echo bug: `chrome.storage.onChanged` fires for this tab's own writes too, so an interactive action that already rendered synchronously (e.g. collapsing a folder) would flicker again a moment later once its own write round-tripped back through `onChanged`. `FolderManager` now tracks the last value it itself wrote per sync key (`ownSyncWrites` / `isOwnSyncEcho`), and `watchCloudSyncChanges()` skips an event entirely when every relevant key change in it is just an echo of its own write. Also collapsed `saveCloudStorageData()`'s three separate `chrome.storage.sync.set()` calls (settings, folders, chat refs) into one batched call, so a single folder-tree save now fires at most 1 `onChanged` event instead of up to 3 (a rare stale-chunk cleanup still needs its own `.remove()` call, since `.set()` can't delete keys). |
 
 ## TODO
 - [ ] Extend Export/Import JSON to cover cloud-mode data.

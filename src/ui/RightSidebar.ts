@@ -46,6 +46,13 @@ export class RightSidebar {
 	// can rely on it.
 	private cloudChangeRefreshTimer: number | null = null;
 
+	// Chat id currently mid-"just added" glow animation, plus when that
+	// animation is expected to finish (see reapplyPendingFlash()).
+	private pendingFlashChatId: string | null = null;
+	private pendingFlashDeadline = 0;
+	// Matches `aichat-flash-highlight 1.5s ease-in-out 3` in styles/folder.ts.
+	private static readonly FLASH_DURATION_MS = 1500 * 3;
+
 	/**
      * Constructs the RightSidebar interface component.
      * @param {LeftSidebarAdapter | null} adapter - Platform operational binder link.
@@ -147,6 +154,16 @@ export class RightSidebar {
 	 *   changes on another device (`acf_s_{code}_{userId}`).
 	 * Local and cloud are two independent stores (see FolderManager) — this
 	 * only ever re-reads and re-renders, it never merges anything.
+	 *
+	 * Every relevant key change is also checked against
+	 * FolderManager.isOwnSyncEcho() before scheduling a refresh.
+	 * chrome.storage.onChanged fires for this tab's own writes too, not just
+	 * for genuine changes from another device/tab — without this check, an
+	 * interactive action that already rendered synchronously (e.g.
+	 * collapsing a folder) would render a second time a moment later, once
+	 * its own write round-trips back through onChanged. This whole event is
+	 * only an echo — and skipped entirely — if EVERY relevant key change in
+	 * it matches something this tab just wrote itself.
 	 */
 	private watchCloudSyncChanges(): void {
 		if (!this.adapter) return;
@@ -162,10 +179,17 @@ export class RightSidebar {
 
 		chrome.storage.onChanged.addListener((changes, areaName) => {
 			if (areaName !== 'sync') return;
-			const accountSettingsChanged = accountSettingsKey ? !!changes[accountSettingsKey] : false;
-			const relevant = !!changes[settingKey] || !!changes['acf_folders'] || accountSettingsChanged ||
-				(chatKeyPrefix ? Object.keys(changes).some(k => k.startsWith(chatKeyPrefix)) : false);
-			if (!relevant) return;
+
+			const relevantKeys = Object.keys(changes).filter(k =>
+				k === settingKey || k === 'acf_folders' || k === accountSettingsKey ||
+				(chatKeyPrefix ? k.startsWith(chatKeyPrefix) : false)
+			);
+			if (relevantKeys.length === 0) return;
+
+			const hasGenuineChange = relevantKeys.some(
+				k => !FolderManager.isOwnSyncEcho(k, changes[k]!.newValue)
+			);
+			if (!hasGenuineChange) return;
 
 			this.scheduleRefreshFromCloudChange();
 		});
@@ -340,8 +364,12 @@ export class RightSidebar {
 							return false;
 						};
 						updateStatus(folders);
+						// Swap the icon in place immediately (doesn't need the
+						// persisted result), instead of calling this.refresh() —
+						// see updateFolderToggleIcon() for why a full re-render
+						// here was causing a flicker on every toggle.
+						this.updateFolderToggleIcon(node, isCollapsed);
 						await FolderManager.saveFolders(folders);
-						this.refresh(); // Refresh to update icon
 					}
 				}
 				return;
@@ -370,8 +398,8 @@ export class RightSidebar {
 								return false;
 							};
 							updateStatus(folders);
+							this.updateFolderToggleIcon(node, isCollapsed);
 							await FolderManager.saveFolders(folders);
-							this.refresh();
 						}
 					}
 					return;
@@ -533,7 +561,28 @@ export class RightSidebar {
 
         const rootFolders = folders.filter(f => !f.parentId);
         list.innerHTML = this.renderFolderTree(rootFolders, 0);
+        // Re-apply any still-active "just added" glow to the freshly-created
+        // DOM node — see reapplyPendingFlash() for why this is needed here.
+        this.reapplyPendingFlash();
     }
+
+	/**
+	 * Swaps a folder node's expand/collapse icon (FOLDER_OPEN vs
+	 * FOLDER_CLOSED) in place, instead of calling render() to rebuild the
+	 * entire tree just to update one glyph. A full render() replaces
+	 * #aichat-folder-list's innerHTML wholesale, destroying and recreating
+	 * every DOM node — including whichever one is currently under the
+	 * cursor — which resets hover-driven CSS transitions (the
+	 * .aichat-actions button row fade-in, card hover background) and shows
+	 * up as a visible flicker on every single collapse/expand, regardless
+	 * of storage mode. Targeting just the one icon that actually changed
+	 * avoids that entirely.
+	 * @private
+	 */
+	private updateFolderToggleIcon(node: HTMLElement, isCollapsed: boolean): void {
+		const iconEl = node.querySelector('.aichat-folder-icon.toggle-folder');
+		if (iconEl) iconEl.innerHTML = isCollapsed ? ICONS.FOLDER_CLOSED : ICONS.FOLDER_OPEN;
+	}
 
 	/**
      * Mounts or modifies inline form editor instances under contextual node hierarchies.
@@ -825,22 +874,65 @@ export class RightSidebar {
 
 	/**
 	 * Briefly flashes the target card to draw the user's eye to something
-	 * that was just added (e.g. a newly saved chat).
+	 * that was just added (e.g. a newly saved chat). Only kicks off the
+	 * animation and remembers the target — reapplyPendingFlash() (called
+	 * here and from every render() pass) does the actual DOM work, so the
+	 * highlight survives a re-render landing mid-animation.
 	 * @private
 	 * @param {string} id - data-id of the target folder-card element.
 	 */
 	private flashNode(id: string): void {
+		this.pendingFlashChatId = id;
+		this.pendingFlashDeadline = performance.now() + RightSidebar.FLASH_DURATION_MS;
+
+		// In case the panel content overflows, make sure the new item is
+		// actually in view. Only done here (not from reapplyPendingFlash()),
+		// so a re-render landing mid-animation doesn't repeatedly yank the
+		// scroll position back to this card.
 		const card = this.panel?.querySelector(`.aichat-folder-card[data-id="${id}"]`) as HTMLElement | null;
-		if (!card) return;
-		// In case the panel content overflows, make sure the new item is actually in view.
-		card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-		// Force a reflow so re-adding the class restarts the animation cleanly,
-		// even if this same id was flashed a moment ago.
+		card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+		this.reapplyPendingFlash();
+	}
+
+	/**
+	 * (Re)starts the "just added" glow on whichever DOM node currently
+	 * represents pendingFlashChatId, if the highlight window hasn't expired
+	 * yet. Called both from flashNode() and at the end of every render()
+	 * pass.
+	 *
+	 * A full render() replaces #aichat-folder-list's entire innerHTML,
+	 * which destroys the exact DOM node flashNode() originally added the
+	 * animation class to. Without this, ANY re-render landing mid-animation
+	 * — a debounced cloud-sync refresh, or simply some other local action —
+	 * silently cuts the glow short (it looks like a single flash that
+	 * immediately vanishes, well before the animation's natural 3 pulses
+	 * finish). Making the highlight resilient to a re-render, rather than
+	 * trying to prevent or reorder the re-render itself, is the fix that
+	 * actually holds regardless of what triggered that re-render.
+	 * @private
+	 */
+	private reapplyPendingFlash(): void {
+		if (!this.pendingFlashChatId) return;
+		if (performance.now() > this.pendingFlashDeadline) {
+			this.pendingFlashChatId = null;
+			return;
+		}
+		const id = this.pendingFlashChatId;
+		const card = this.panel?.querySelector(`.aichat-folder-card[data-id="${id}"]`) as HTMLElement | null;
+		if (!card) return; // node no longer exists (e.g. deleted) — nothing to (re)flash
+
+		// Force a reflow so re-adding the class restarts the animation
+		// cleanly, even if this exact node was already flashing a moment ago.
 		card.classList.remove('aichat-just-added');
 		void card.offsetWidth;
 		card.classList.add('aichat-just-added');
 		card.addEventListener('animationend', () => {
 			card.classList.remove('aichat-just-added');
+			// Only clear the pending target if nothing re-armed it in the
+			// meantime (e.g. a same-id flashNode() call while this one was
+			// still playing).
+			if (this.pendingFlashChatId === id) this.pendingFlashChatId = null;
 		}, { once: true });
 	}
 

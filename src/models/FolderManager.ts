@@ -123,12 +123,74 @@ export class FolderManager {
     }
 
     private static storageSet(area: 'local' | 'sync', data: Record<string, any>): Promise<void> {
+        if (area === 'sync') this.recordOwnSyncWrite(data);
         return new Promise((resolve, reject) => {
             this.storageArea(area).set(data, () => {
                 if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
                 else resolve();
             });
         });
+    }
+
+    // ── Self-write echo tracking (chrome.storage.sync only) ────────────────
+    // chrome.storage.onChanged fires for the writing context's own writes
+    // too, not just for changes made by other devices/tabs — this is
+    // documented Chrome behavior, not a bug. Without tracking this,
+    // RightSidebar.watchCloudSyncChanges() cannot tell "another device just
+    // changed something" apart from "I just wrote this myself a moment
+    // ago", and ends up re-rendering a second time for its own write — this
+    // is what shows up as an extra flicker right after an interactive
+    // action (e.g. collapsing a folder) that already rendered synchronously.
+    // ownSyncWrites records the last value THIS tab itself wrote (or
+    // removed) per key, so isOwnSyncEcho() can recognize it later.
+    //
+    // Comparison MUST be structural (deepEqual), not a JSON.stringify string
+    // comparison: chrome.storage.onChanged's reported newValue round-trips
+    // through Chrome's own internal serialization, which does not guarantee
+    // preserving the original object's key insertion order. Two objects with
+    // identical content but differently-ordered keys produce different
+    // JSON.stringify output, which made the string-based version of this
+    // check misfire as "genuine change" on every write, confirmed via
+    // console logging — see docs/features/CloudSync.md revision history.
+
+    private static ownSyncWrites = new Map<string, any>();
+
+    private static recordOwnSyncWrite(data: Record<string, any>): void {
+        for (const [key, value] of Object.entries(data)) {
+            this.ownSyncWrites.set(key, value);
+        }
+    }
+
+    /**
+     * True if `newValue` for `key`, as reported by chrome.storage.onChanged,
+     * is structurally equal to the last value THIS tab itself wrote (or
+     * removed) at that key — i.e. this event is just chrome.storage.onChanged
+     * echoing our own write back, not a genuine change from another
+     * device/tab. Key order is intentionally ignored (see deepEqual()).
+     */
+    static isOwnSyncEcho(key: string, newValue: any): boolean {
+        if (!this.ownSyncWrites.has(key)) return false;
+        return this.deepEqual(this.ownSyncWrites.get(key), newValue);
+    }
+
+    /**
+     * Structural equality, ignoring object key order (unlike
+     * JSON.stringify(a) === JSON.stringify(b)). Sufficient for the plain
+     * JSON-serializable shapes stored in chrome.storage (StoredNode trees,
+     * AccountSettings, SyncChatRef arrays) — no need to handle Date, Map,
+     * circular references, etc., since none of those are ever persisted here.
+     */
+    private static deepEqual(a: any, b: any): boolean {
+        if (a === b) return true; // covers primitives, and undefined === undefined
+        if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+        if (Array.isArray(a) !== Array.isArray(b)) return false;
+        if (Array.isArray(a)) {
+            return a.length === b.length && a.every((v: any, i: number) => this.deepEqual(v, b[i]));
+        }
+        const aKeys = Object.keys(a);
+        const bKeys = Object.keys(b);
+        if (aKeys.length !== bKeys.length) return false;
+        return aKeys.every(k => Object.prototype.hasOwnProperty.call(b, k) && this.deepEqual(a[k], b[k]));
     }
 
     /**
@@ -145,6 +207,11 @@ export class FolderManager {
 
     private static storageRemove(area: 'local' | 'sync', keys: string[]): Promise<void> {
         if (keys.length === 0) return Promise.resolve();
+        // A removed key reports newValue === undefined via onChanged, so
+        // record that same "value" here for isOwnSyncEcho() to match against.
+        if (area === 'sync') {
+            for (const key of keys) this.ownSyncWrites.set(key, undefined);
+        }
         return new Promise((resolve, reject) => {
             this.storageArea(area).remove(keys, () => {
                 if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
@@ -233,21 +300,47 @@ export class FolderManager {
 		return { folders: this.graftChatRefs(folders, refs), settings, nextId };
 	}
 
+	/**
+	 * Writes the folder tree, this account's AccountSettings, and this
+	 * account's chat-ref chunks as ONE batched chrome.storage.sync.set()
+	 * call, instead of three separate calls (one per key "family"). Each
+	 * separate .set() call fires its own chrome.storage.onChanged event, so
+	 * batching collapses what used to be up to 3 onChanged events per
+	 * folder-tree save down to 1 — meaningfully fewer redundant refreshes
+	 * for RightSidebar.watchCloudSyncChanges() to filter through (on top of
+	 * the debouncing/echo-detection already in place there).
+	 *
+	 * AccountSettings is folded in here (rather than round-tripped through
+	 * saveSyncAccountSettings()) purely to land in the same batched call —
+	 * updateAccountSettings() still calls saveSyncAccountSettings() directly
+	 * for changes unrelated to saving the folder tree (e.g. toggling
+	 * hideChat), which correctly stays its own separate write.
+	 *
+	 * A stale-chunk cleanup, when needed, is NOT part of the batch: chrome's
+	 * storage API has no "set this, remove that" combined call — .set()
+	 * cannot delete keys — so it stays a second, separate .remove() call,
+	 * only made when chat refs shrank enough to actually free up a chunk.
+	 */
 	private static async saveCloudStorageData(data: StorageSchema): Promise<void> {
-		// AccountSettings now follows the storage mode too (see the
-		// "Cloud sync: per-account AccountSettings" section below), so it is
-		// round-tripped here purely so folder-tree CRUD callers going through
-		// getStorageData()/saveStorageData() don't accidentally clobber it.
-		// To actually change it, use getAccountSettings()/updateAccountSettings().
-		await this.saveSyncAccountSettings(data.settings);
-
-		await this.writeSyncFolders(data.folders, data.nextId);
-		if (this.adapter) {
-			const userId = this.adapter.getResolvedAccountKey();
-			if (userId) {
-				await this.writeChatRefsToSync(this.adapter.platformId, userId, this.extractChatRefs(data.folders));
-			}
+		if (!this.adapter) {
+			throw new Error('FolderManager not initialized. Call FolderManager.init(adapter) first.');
 		}
+		const userId = this.adapter.getResolvedAccountKey();
+		if (!userId) {
+			throw new Error('Cannot resolve settings key: User is not logged in.');
+		}
+
+		const { toSet: chatRefsToSet, staleKeys } = await this.buildChatRefSyncPlan(
+			this.adapter.platformId, userId, this.extractChatRefs(data.folders)
+		);
+		const settingsKey = this.getAccountSettingsSyncKey(this.adapter.platformId, userId);
+
+		await this.storageSet('sync', {
+			[this.SYNC_FOLDERS_KEY]: { f: this.dehydrateFoldersOnly(data.folders), nextId: data.nextId },
+			[settingsKey]: data.settings,
+			...chatRefsToSet,
+		});
+		await this.storageRemove('sync', staleKeys);
 	}
 
 	/**
@@ -456,7 +549,7 @@ export class FolderManager {
 
     /** Same as dehydrate(), but drops chat leaves — the synced tree is pure
      * structure. Which chats live where is tracked separately, per
-     * platform+account (see writeChatRefsToSync below). */
+     * platform+account (see buildChatRefSyncPlan below). */
     private static dehydrateFoldersOnly(nodes: FolderData[]): StoredNode[] {
         return nodes
             .filter(f => !f.isChat)
@@ -473,12 +566,6 @@ export class FolderManager {
         const result = await this.storageGet<{ f?: StoredNode[]; nextId?: number }>('sync', [this.SYNC_FOLDERS_KEY]);
         const data = result[this.SYNC_FOLDERS_KEY] || {};
         return { folders: this.hydrate(data.f, null), nextId: data.nextId ?? 1 };
-    }
-
-    private static async writeSyncFolders(folders: FolderData[], nextId: number): Promise<void> {
-        await this.storageSet('sync', {
-            [this.SYNC_FOLDERS_KEY]: { f: this.dehydrateFoldersOnly(folders), nextId },
-        });
     }
 
     // ── Cloud sync: chat-to-folder references (per platform+account, chunked) ──
@@ -555,14 +642,22 @@ export class FolderManager {
     }
 
     /**
-     * Re-chunks and overwrites this platform+account's entire chat-ref set
-     * on chrome.storage.sync (full repack, not incremental append), then
-     * removes any now-unused trailing chunk keys — e.g. after chats were
-     * deleted and fewer chunks are needed than last time. Repacking from
-     * scratch on every write is simpler than tracking per-chunk deltas and
-     * cheap enough at the scale these lists actually reach.
+     * Computes what a full repack of this platform+account's entire
+     * chat-ref set would write (not incremental append — same reasoning as
+     * before), WITHOUT performing any write itself. Split out from the old
+     * writeChatRefsToSync() so its result can be folded into
+     * saveCloudStorageData()'s single batched .set() call instead of
+     * making its own separate one.
+     *
+     * `staleKeys` are chunk keys left over from a previous, larger write
+     * that this repack no longer needs (e.g. chats were deleted since, so
+     * fewer chunks are required than last time). These can't be part of
+     * the same .set() call — chrome.storage has no combined "set this,
+     * remove that" call — so the caller must .remove() them separately.
      */
-    private static async writeChatRefsToSync(platformId: string, userId: string, refs: SyncChatRef[]): Promise<void> {
+    private static async buildChatRefSyncPlan(
+        platformId: string, userId: string, refs: SyncChatRef[]
+    ): Promise<{ toSet: Record<string, SyncChatRef[]>; staleKeys: string[] }> {
         const prefix = this.getChatSyncKeyPrefix(platformId, userId);
         const all = await this.storageGetAll('sync');
         const oldKeys = Object.keys(all).filter(k => k.startsWith(prefix));
@@ -571,9 +666,8 @@ export class FolderManager {
         const toSet: Record<string, SyncChatRef[]> = {};
         chunks.forEach((chunk, idx) => { toSet[`${prefix}${idx}`] = chunk; });
 
-        if (Object.keys(toSet).length > 0) await this.storageSet('sync', toSet);
         const staleKeys = oldKeys.filter(k => !(k in toSet));
-        await this.storageRemove('sync', staleKeys);
+        return { toSet, staleKeys };
     }
 
     private static async readChatRefsFromSync(platformId: string, userId: string): Promise<SyncChatRef[]> {
