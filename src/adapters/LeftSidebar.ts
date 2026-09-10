@@ -488,4 +488,77 @@ export abstract class LeftSidebarAdapter {
 	protected cleanChatId(rawId: string): string {
 		return rawId.split('?')[0]!.split('#')[0]!;
 	}
+
+	// ── Collapse AI Answers ──────────────────────────────────────────────
+	// See docs/features/CollapseAnswers.md. Design: CSS handles the bulk
+	// default state via a `~` sibling relationship (`:has(~ .ai-chat-folder-anchor)`),
+	// so turns loaded later by infinite scroll (before OR after the anchor)
+	// are automatically covered with no JS bookkeeping. JS only (a) moves
+	// the anchor marker once per click of the sidebar "collapse" button, and
+	// (b) toggles an explicit per-turn override class on individual clicks.
+	// Left null (default) on platforms that haven't implemented this yet.
+
+	/** CSS selector for the scrollable container holding every conversation turn. */
+	protected collapseContainerSelector: string | null = null;
+	/** CSS selector (relative to collapseContainerSelector's direct children) for one turn wrapper. */
+	protected collapseTurnSelector: string | null = null;
+	/** CSS selector (descendant of a turn) for the actual collapsible AI response element. */
+	protected collapseResponseSelector: string | null = null;
+
+	/**
+	 * One-shot action bound to the sidebar's "collapse" button: moves the
+	 * `ai-chat-folder-anchor` marker class to the CURRENT last conversation
+	 * turn. CSS does the rest — every response-content nested inside a turn
+	 * that has this anchor as a later sibling gets collapsed. Turns the user
+	 * already expanded/collapsed individually are untouched; only the
+	 * anchor's position moves.
+	 * No-op on platforms where the three selectors above aren't set.
+	 */
+	public collapseOldChats(): void {
+		if (!this.collapseContainerSelector || !this.collapseTurnSelector) return;
+		const scroller = document.querySelector(this.collapseContainerSelector);
+		if (!scroller) return;
+
+		const turns = scroller.querySelectorAll(`:scope > ${this.collapseTurnSelector}`);
+		if (turns.length === 0) return;
+
+		// Remove the anchor from wherever it currently sits before re-adding it
+		scroller
+			.querySelector(`:scope > ${this.collapseTurnSelector}.ai-chat-folder-anchor`)
+			?.classList.remove('ai-chat-folder-anchor');
+
+		turns[turns.length - 1]!.classList.add('ai-chat-folder-anchor');
+	}
+
+	/**
+	 * Delegated click listener toggling collapse/expand on an individual AI
+	 * response. Shared across platforms since the logic only depends on
+	 * `collapseResponseSelector` — call once from a platform's `init()` if
+	 * that platform supports turn-collapsing.
+	 * @protected
+	 */
+	protected initCollapseClickListener(): void {
+		if (!this.collapseResponseSelector) return;
+		const responseSelector = this.collapseResponseSelector;
+
+		document.body.addEventListener('click', (e) => {
+			const target = e.target as HTMLElement;
+			const response = target.closest(responseSelector) as HTMLElement | null;
+			if (!response) return;
+
+			if (!document.querySelector('.ai-chat-folder-anchor')) return;
+
+			if (target.closest('a, button, input, textarea, code, pre, [contenteditable]')) return;
+			if (window.getSelection()?.toString().length) return;
+
+			const isExpanded = response.classList.contains('ai-chat-folder-expanded');
+			if (isExpanded) {
+				const rect = response.getBoundingClientRect();
+				if ((e.clientY - rect.top) > 40) return;
+			}
+
+			response.classList.remove('ai-chat-folder-expanded', 'ai-chat-folder-collapsed');
+			response.classList.add(isExpanded ? 'ai-chat-folder-collapsed' : 'ai-chat-folder-expanded');
+		});
+	}
 }

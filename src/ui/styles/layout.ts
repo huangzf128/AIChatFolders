@@ -91,6 +91,7 @@ export const LayoutStyles = `
 		border-top: 1px solid #333;
 		display: flex;
 		align-items: center;
+		gap: 16px;
 	}	
 	
 	/* ------------------------------ */

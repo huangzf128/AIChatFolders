@@ -286,9 +286,6 @@ export class RightSidebar {
 			<div class="aichat-header">
 				<h2 style="color:white; margin:0; font-size:18px;">Chat Folder</h2>
 				<div style="display: flex; gap: 12px; align-items: center;">
-					<div id="aichat-toggle-hide-btn" class="aichat-header-btn" title="Hide chats already saved to a folder">
-						${ICONS.EYE}
-					</div>				
 					<div id="add-folder-root" class="aichat-header-btn" title="Add New Top-level Folder">
 						${ICONS.ADD_FOLDER_HEADER}
 					</div>
@@ -301,7 +298,14 @@ export class RightSidebar {
 				<div id="aichat-folder-list"></div>
 			</div>
 			<div class="aichat-footer" id="aichat-footer">
-				<!-- Reserved for future feature area -->
+				<div id="aichat-toggle-hide-btn" class="aichat-header-btn" title="Hide chats that are already in a folder from the native list">
+					${ICONS.EYE}
+					<span style="font-size: 12px; margin-left: 6px;">Hide chats</span>
+				</div>
+				<div id="aichat-collapse-answers-btn" class="aichat-header-btn" title="Fold AI replies for the current conversation only">
+					${ICONS.COLLAPSE_ANSWERS}
+					<span style="font-size: 12px; margin-left: 6px;">Fold AI replies</span>
+				</div>
 			</div>
 		`;
         document.body.appendChild(this.panel);
@@ -408,6 +412,14 @@ export class RightSidebar {
 
 			if (target.closest('#aichat-close-btn')) {
 				this.toggle(false);
+				return;
+			}
+
+			if (target.closest('#aichat-collapse-answers-btn')) {
+				// One-shot action: just moves the anchor. Individually
+				// expanded/collapsed turns are left untouched — see
+				// LeftSidebarAdapter.collapseOldChats().
+				this.adapter?.collapseOldChats();
 				return;
 			}
 
@@ -1047,10 +1059,12 @@ export class RightSidebar {
 		const btn = this.panel?.querySelector('#aichat-toggle-hide-btn');
 		if (!btn) return;
 		btn.classList.toggle('is-active', this.AccountSettings.hideChat);
-		btn.innerHTML = this.AccountSettings.hideChat ? ICONS.EYE_OFF : ICONS.EYE;
+		const icon = this.AccountSettings.hideChat ? ICONS.EYE_OFF : ICONS.EYE;
+		const label = 'Hide chats';
+		btn.innerHTML = `${icon}<span style="font-size: 12px; margin-left: 6px;">${label}</span>`;
 		btn.setAttribute('title', this.AccountSettings.hideChat
 			? 'Show all chats in the native sidebar'
-			: 'Hide chats already saved to a folder');
+			: 'Hide chats that are already in a folder from the native list');
 	}
 
 	/** Checks whether a given chat id still exists anywhere in the folder tree. */

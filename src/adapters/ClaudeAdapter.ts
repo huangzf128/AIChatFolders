@@ -27,6 +27,17 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 	protected override rowSelector = 'div[data-row-key]';
 	protected override linkSelector = 'a[href*="/chat/"]';
 
+	// Collapse AI Answers — see LeftSidebar.ts for the shared mechanics.
+	// DOM shape (confirmed via inspection):
+	//   [data-testid="transcript-sizer"]              ← ONE container for the whole conversation
+	//     > [data-testid="transcript-row"][data-perf-row="assistant"]  ← each AI turn (siblings)
+	//     > [data-testid="transcript-row"][data-perf-row="human"]      ← each user turn (siblings)
+	// Anchor goes on the last assistant row; CSS `:has(~ .anchor)` collapses
+	// every assistant row before it. See collapse.ts.
+	protected override collapseContainerSelector = '[data-testid="transcript-sizer"]';
+	protected override collapseTurnSelector = '[data-perf-row="assistant"]';
+	protected override collapseResponseSelector = '[data-perf-row="assistant"]';
+
 	constructor() {
         super();
     }
@@ -37,6 +48,26 @@ export class ClaudeAdapter extends LeftSidebarAdapter {
 	public init(): void {
 		this.initClickListener();
 		this.initNativeChatSync();
+		this.initCollapseClickListener();
+	}
+
+	/**
+	 * Override: anchor goes on the last assistant row directly.
+	 * CSS `:has(~ .ai-chat-folder-anchor)` on sibling assistant rows
+	 * collapses everything before the anchor — see collapse.ts.
+	 */
+	public override collapseOldChats(): void {
+		if (!this.collapseContainerSelector || !this.collapseResponseSelector) return;
+		const container = document.querySelector(this.collapseContainerSelector);
+		if (!container) return;
+
+		const responses = container.querySelectorAll(`:scope > ${this.collapseResponseSelector}`);
+		if (responses.length === 0) return;
+
+		container.querySelector(`:scope > ${this.collapseResponseSelector}.ai-chat-folder-anchor`)
+			?.classList.remove('ai-chat-folder-anchor');
+
+		responses[responses.length - 1]!.classList.add('ai-chat-folder-anchor');
 	}
 
 	/**

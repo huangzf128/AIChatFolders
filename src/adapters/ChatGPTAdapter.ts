@@ -16,6 +16,10 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 	protected override rowSelector = 'li';
 	protected override linkSelector = 'a[href*="/c/"]';
 
+	protected override collapseContainerSelector = '#thread';
+	protected override collapseTurnSelector = 'div[data-turn-id-container]';
+	protected override collapseResponseSelector = 'section[data-turn="assistant"]';
+
 	constructor() {
         super();
     }
@@ -26,6 +30,25 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 	public init(): void {
 		this.initClickListener();
 		this.initNativeChatSync();
+		this.initCollapseClickListener();
+	}
+
+	/**
+	 * Override: turns are not direct children of #thread (there's an
+	 * intermediate div), so we use descendant query instead of :scope >.
+	 */
+	public override collapseOldChats(): void {
+		if (!this.collapseContainerSelector || !this.collapseTurnSelector) return;
+		const container = document.querySelector(this.collapseContainerSelector);
+		if (!container) return;
+
+		const turns = container.querySelectorAll(this.collapseTurnSelector);
+		if (turns.length === 0) return;
+
+		container.querySelector(`${this.collapseTurnSelector}.ai-chat-folder-anchor`)
+			?.classList.remove('ai-chat-folder-anchor');
+
+		turns[turns.length - 1]!.classList.add('ai-chat-folder-anchor');
 	}
 
     protected createMenuItem(): void {

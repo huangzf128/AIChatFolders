@@ -14,6 +14,16 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 	protected override rowSelector = 'gem-nav-list-item';
 	protected override linkSelector = 'a[href*="/app/"]';
 
+	// Collapse AI Answers — see LeftSidebar.ts for the shared mechanics.
+	// DOM shape (confirmed via inspection):
+	//   infinite-scroller[data-test-id="chat-history-container"]
+	//     > conversation-container            (one per turn; anchor lands here)
+	//         > model-response > response-container
+	//             > .response-container-content > .response-content   (collapse target)
+	protected override collapseContainerSelector = '[data-test-id="chat-history-container"]';
+	protected override collapseTurnSelector = '.conversation-container';
+	protected override collapseResponseSelector = '.response-content';
+
 	constructor() {
         super();
     }
@@ -24,6 +34,7 @@ export class GeminiAdapter extends LeftSidebarAdapter {
 	public init(): void {
 		this.initClickListener();
 		this.initNativeChatSync();
+		this.initCollapseClickListener();
 	}
 
 	protected createMenuItem(): void {
