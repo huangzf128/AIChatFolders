@@ -2,7 +2,7 @@
 
 ## Summary
 
-Adds an eye-icon toggle in the right panel header that hides/shows native sidebar rows for chats that are already saved to a folder, so the same chat doesn't appear twice (once in the native list, once in the folder tree).
+Adds an eye-icon toggle in the right panel footer that hides/shows native sidebar rows for chats that are already saved to a folder, so the same chat doesn't appear twice (once in the native list, once in the folder tree).
 
 ## Key Capabilities
 - **Clean Sidebar Experience**: Reduces visual noise by hiding archived/organized conversations from the daily chat list while keeping them easily accessible via the AIChatFolders drawer panel.
@@ -71,6 +71,7 @@ Adds an eye-icon toggle in the right panel header that hides/shows native sideba
 |------|--------|--------------|
 | 2026-07-28 | `<commit-hash>` | Initial implementation: hide categorized chats from the native sidebar, across all four platforms (Gemini, ChatGPT, Claude, DeepSeek). Row-lookup logic consolidated into `LeftSidebarAdapter`.  |
 | 2026-07-28 | `<commit-hash>` | Fixed native rows not being restored after deleting a saved chat/folder while hide mode was active. `savedChatIds` was only refreshed inside `refresh()`, so the mutation-observer-triggered full scan (`applyHideToAllRows`) re-hid the row using stale data right after `showRowById` un-hid it. |
+| 2026-09-10 | `bfa7d87` | Moved the eye-icon toggle from the panel header into the footer, alongside the new "Fold AI replies" button (see `docs/features/CollapseAnswers.md`), establishing the footer as the panel's dedicated action-button area. No behavioral change — same toggle, same `AccountSettings.hideChat` state, just relocated. |
 
 ## TODO
 - [ ] None currently.

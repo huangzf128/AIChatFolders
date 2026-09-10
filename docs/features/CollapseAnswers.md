@@ -5,7 +5,7 @@
 Adds a "Fold AI replies" button in the right panel footer that collapses older AI responses in the current conversation, leaving only the latest answer fully visible. This makes it much easier to scroll back through long conversations without being overwhelmed by walls of AI-generated text.
 
 ## Key Capabilities
-- **One-Click Batch Fold**: Clicking the footer button instantly collapses all AI answers except the most recent one, reducing each to a compact preview (2 lines for Gemini/ChatGPT, ~4 lines for Claude).
+- **One-Click Batch Fold**: Clicking the footer button instantly collapses all AI answers except the most recent one, reducing each to a compact preview (2 lines for Gemini, ~4 lines for Claude/ChatGPT).
 - **Per-Answer Toggle**: After folding, clicking any collapsed answer expands it; clicking the top 40px of an expanded answer collapses it again.
 - **Per-Conversation Scope**: Folding only affects the current conversation. Switching to another chat resets everything — no stale state.
 - **Lazy-Load Safe**: On platforms that lazy-load older messages on scroll (Gemini, ChatGPT), newly loaded answers are automatically collapsed by CSS — no JS re-scan needed.
@@ -37,13 +37,16 @@ The feature is built on a **CSS-driven, JS-minimal** design:
 |----------|-----------|---------------|-------------------|-----------------|
 | Gemini | `[data-test-id="chat-history-container"]` | `.conversation-container` | `.response-content` | `-webkit-line-clamp: 2` |
 | Claude | `[data-testid="transcript-sizer"]` | `[data-perf-row="assistant"]` | `[data-perf-row="assistant"]` | `max-height: 6em` + `overflow: hidden` |
-| ChatGPT | `#thread` | `[data-turn-id-container]` | `section[data-turn="assistant"]` | `-webkit-line-clamp: 2` |
+| ChatGPT | `#thread` | `[data-turn-id-container]` | `section[data-turn="assistant"]` | `max-height: 6em` + `overflow: hidden` |
 
-- **Gemini & ChatGPT** use `-webkit-line-clamp` for truncation because their
-  response elements support the `-webkit-box` display model.
-- **Claude** uses `max-height` + `overflow: hidden` because its assistant rows
-  have an inline `display: flow-root` that prevents `-webkit-box` from working.
-  Claude also gets a subtle border + border-radius on collapsed answers.
+- **Gemini** uses `-webkit-line-clamp` for truncation because its response
+  element supports the `-webkit-box` display model.
+- **Claude and ChatGPT** both use `max-height` + `overflow: hidden` (with a
+  border + border-radius on collapsed answers) — confirmed via testing that
+  `section[data-turn="assistant"]` on ChatGPT also fails to render
+  `-webkit-line-clamp` correctly (same underlying issue as Claude's inline
+  `display: flow-root` preventing `-webkit-box` from taking effect), so both
+  share `CLAUDE_COLLAPSED_BODY` in `collapse.ts` despite the constant's name.
 - **DeepSeek** is not supported because its virtual list (`ds-virtual-list`)
   removes DOM nodes as the user scrolls, making the anchor unreliable.
 
@@ -84,12 +87,7 @@ The feature is built on a **CSS-driven, JS-minimal** design:
 ## Revision History
 | Date | Commit | Description |
 |------|--------|--------------|
-| 2025-09-09 | — | Initial implementation: Gemini support |
-| 2025-09-09 | — | Added Claude support (max-height + border) |
-| 2025-09-09 | — | Added ChatGPT support |
-| 2025-09-09 | — | Attempted DeepSeek support, reverted (virtual-list DOM removal) |
-| 2025-09-09 | — | Moved eye toggle to footer alongside collapse button |
-| 2025-09-09 | — | Renamed button text to "Fold AI replies", added tooltips |
+| 2026-09-10 | `bfa7d87` | Initial implementation: "Fold AI replies" footer button across Gemini, Claude, and ChatGPT. CSS-driven anchor + `:has()` sibling selector, per-answer click toggle. DeepSeek intentionally left unsupported (virtual list removes off-screen DOM nodes, making the anchor unreliable). Also moved the existing "Hide chats" eye toggle from the header into the footer alongside the new button, so the footer becomes the panel's dedicated action-button area going forward; updated both buttons' labels/tooltips accordingly (see `docs/features/HideChats.md` revision history). |
 
 ## TODO
 - [ ] Consider adding a per-answer toggle icon at the top of each collapsed/expanded answer

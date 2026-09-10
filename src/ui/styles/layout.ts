@@ -62,6 +62,19 @@ export const LayoutStyles = `
         color: #fff;
     }
 
+    .aichat-help-link {
+        color: rgba(255, 255, 255, 0.35);
+        text-decoration: none;
+        vertical-align: middle;
+        margin-left: 4px;
+        display: inline-flex;
+        align-items: center;
+        transition: color 0.2s;
+    }
+    .aichat-help-link:hover {
+        color: rgba(255, 255, 255, 0.85);
+    }
+
 	/* ------------------------------ */
 	/* --- Scrollable Body Region --- */
 	/* ------------------------------ */
