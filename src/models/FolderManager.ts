@@ -61,6 +61,8 @@ interface StoredNode {
     cd?: 1;
     /** isChat. Only written when true (the non-default state — absence means folder). */
     isC?: 1;
+    /** isFavorite. Only written when true (the non-default state). Only meaningful for chat leaves. */
+    fv?: 1;
 }
 
 // ── Cloud sync (chrome.storage.sync) shapes ──────────────────────────────
@@ -87,6 +89,9 @@ interface SyncChatRef {
     id: string;   // native chat id, as issued by the AI platform
     nm: string;   // chat title
     fid: string;  // id of the folder (in the shared tree) it's filed under
+    /** Favorite flag. Omitted (not just falsy) when unset, to match the
+     * omit-default convention used elsewhere in this file's on-disk shapes. */
+    fav?: 1;
 }
 
 /**
@@ -517,6 +522,7 @@ export class FolderManager {
 				parentId,
 				isCollapsed: n.cd === 1,
 				isChat,
+				isFavorite: n.fv === 1,
 				children: this.hydrate(n.ch, n.id),
 			};
 		});
@@ -533,6 +539,7 @@ export class FolderManager {
 			if (!f.isChat) out.cl = f.color; // color is meaningless for chat leaves — never persisted for them
 			if (f.isCollapsed) out.cd = 1;
 			if (f.isChat) out.isC = 1;
+			if (f.isFavorite) out.fv = 1;
 			if (f.children && f.children.length > 0) out.ch = this.dehydrate(f.children);
 			return out;
 		});
@@ -582,7 +589,11 @@ export class FolderManager {
         const refs: SyncChatRef[] = [];
         const walk = (list: FolderData[]) => {
             for (const f of list) {
-                if (f.isChat && f.parentId) refs.push({ id: f.id, nm: f.name, fid: f.parentId });
+                if (f.isChat && f.parentId) {
+                    const ref: SyncChatRef = { id: f.id, nm: f.name, fid: f.parentId };
+                    if (f.isFavorite) ref.fav = 1;
+                    refs.push(ref);
+                }
                 if (f.children?.length) walk(f.children);
             }
         };
@@ -614,6 +625,7 @@ export class FolderManager {
             parent.children.push({
                 id: ref.id, name: ref.nm, color: CHAT_LEAF_COLOR_CODE,
                 parentId: ref.fid, children: [], isChat: true,
+                isFavorite: ref.fav === 1,
             });
         }
         return folderTree;
@@ -1017,6 +1029,30 @@ export class FolderManager {
 			}
 		};
 		renameInTree(folders);
+		await this.saveFolders(folders);
+		return folders;
+	}
+
+	/**
+	 * Sets the favorite (starred) flag on every node matching the given id,
+	 * in place. Same all-matches semantics as renameNode() — a single chat
+	 * saved into multiple folders has its favorite state kept in sync
+	 * across every copy, rather than diverging per reference.
+	 * @param {string} id - Unique identifier of the target chat leaf.
+	 * @param {boolean} isFavorite - The new favorite state.
+	 * @returns {Promise<FolderData[]>} The updated folder tree.
+	 */
+	static async setFavorite(id: string, isFavorite: boolean): Promise<FolderData[]> {
+		const folders = await this.getFolders();
+		const applyInTree = (list: FolderData[]): void => {
+			for (const f of list) {
+				if (f.id === id && f.isChat) {
+					f.isFavorite = isFavorite;
+				}
+				if (f.children) applyInTree(f.children);
+			}
+		};
+		applyInTree(folders);
 		await this.saveFolders(folders);
 		return folders;
 	}

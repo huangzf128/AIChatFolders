@@ -359,6 +359,40 @@ export const FolderStyles = `
 		opacity: 1;
 	}
 
+	/* Favorite (starred) chats: hover-only "add to favorites" action button,
+	   styled like the other per-row action buttons but tinted gold instead
+	   of the trash icon's red, so it reads as a distinct affordance. */
+	.aichat-chat-leaf .favorite-btn {
+		color: #f1c40f;
+		opacity: 0;
+		transition: opacity 0.15s ease;
+	}
+	.aichat-chat-leaf:hover .favorite-btn {
+		opacity: 0.4;
+	}
+	.aichat-chat-leaf .favorite-btn:hover {
+		opacity: 1 !important;
+		filter: brightness(1.2);
+	}
+
+	/* Always-visible star shown before a favorited chat's title. Sits inside
+	   .aichat-folder-title (a flex row) as its own item, not inside the
+	   anchor — so it stays clickable (toggling unfavorite) without
+	   triggering chat navigation, and doesn't get clipped by the anchor's
+	   own text-overflow: ellipsis. */
+	.aichat-favorite-star {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		margin-right: 4px; /* chat-leaf titles use gap: 0, so spacing is explicit here */
+		color: #f1c40f;
+		cursor: pointer;
+		transition: transform 0.15s ease;
+	}
+	.aichat-favorite-star:hover {
+		transform: scale(1.15);
+	}
+
 	/* Remove extra spacing between chat items */
 	.aichat-chat-leaf {
 		padding: 0;

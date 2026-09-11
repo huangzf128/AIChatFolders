@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-*No changes yet.*
+### Added
+
+* Added a Favorites feature: chats can be starred from the folder panel. A favorited chat shows a filled star before its title (click to unfavorite); an unfavorited chat shows a hover-only outline star action next to delete (click to favorite).
 
 ## [1.2.0] - 2026-08-19
 

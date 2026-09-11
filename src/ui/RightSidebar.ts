@@ -344,6 +344,21 @@ export class RightSidebar {
                 return;
 			}
 
+			// Toggle a chat's favorite (starred) state. Shared by both the
+			// hover-only "add to favorites" action button and the always-visible
+			// "click to unfavorite" star shown before a favorited chat's title —
+			// see docs/features/Favorites.md. The current state is read straight
+			// off the clicked element's own data-favorite attribute, so no tree
+			// lookup is needed just to know which way to toggle.
+			const favToggle = target.closest('.aichat-favorite-toggle') as HTMLElement;
+			if (favToggle) {
+				const id = favToggle.dataset.id!;
+				const isFavorite = favToggle.dataset.favorite === '1';
+				const updated = await FolderManager.setFavorite(id, !isFavorite);
+				this.render(updated);
+				return;
+			}
+
 			// Parse toggle actions responsible for manipulating local folder visual expansions
 			const folderIcon = target.closest('.toggle-folder') as HTMLElement;
 			if (folderIcon) {
@@ -965,21 +980,37 @@ export class RightSidebar {
 			// Render branch leaf instances representing mapped native chat history items
 			if (folder.isChat) {
 				const targetChatId = folder.id;
+				const isFavorite = !!folder.isFavorite;
 				let dynamicUrl = '#';
 				if (this.adapter) {
 					dynamicUrl = this.adapter.resolveChatUrl(targetChatId);
 				}
-				
+
+				// Favorited: a filled star sits before the title, always visible,
+				// and is itself the unfavorite control — the hover-only action
+				// button below is not shown, since only one star should ever be
+				// visible for a given chat at a time.
+				const favoriteStar = isFavorite
+					? `<span class="aichat-favorite-toggle aichat-favorite-star" data-id="${folder.id}" data-favorite="1" title="Remove from favorites">${ICONS.STAR_FILLED}</span>`
+					: '';
+				// Not favorited: a hover-only outline star sits in the actions row
+				// alongside delete, same as any other per-row action button.
+				const favoriteActionBtn = !isFavorite
+					? `<span class="aichat-favorite-toggle favorite-btn" data-id="${folder.id}" data-favorite="0" title="Add to favorites">${ICONS.STAR}</span>`
+					: '';
+
 				return `
 				<div class="aichat-folder-node aichat-chat-leaf" data-id="${folder.id}">
 					<div class="aichat-folder-card aichat-chat-card" data-id="${folder.id}" draggable="true">
 						<div class="aichat-folder-header">
 							<span class="aichat-folder-title">
+								${favoriteStar}
 								<a href="${dynamicUrl}" class="aichat-chat-anchor" title="${folder.name}" target="_blank" data-chat-id="${targetChatId}">
 									${folder.name}
 								</a>
 							</span>
 							<div class="aichat-actions">
+								${favoriteActionBtn}
 								<span class="delete-btn" data-id="${folder.id}">${ICONS.TRASH}</span>
 							</div>
 						</div>

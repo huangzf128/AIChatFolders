@@ -22,6 +22,9 @@ export interface FolderData {
     parentId: string | null;
     children: FolderData[];
     isChat?: boolean;
+    /** Whether this chat leaf has been starred by the user. Meaningless (kept
+     * false) for folders — only chat leaves can be favorited. */
+    isFavorite?: boolean;
 }
 
 /**
