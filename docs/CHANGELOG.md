@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+* Fixed ChatGPT "Fold AI replies" not working after a DOM restructuring that introduced a virtualized layout with subwrapper divs. Reworked to use container-level anchor + `:not(:last-child)` CSS instead of per-turn `:has(~ .anchor)` sibling selector. Updated selectors to `data-chatgpt-search-unit-key` attributes. Added conversation-change listener to remove stale anchors from cached containers.
 * Fixed "Add to Folder" menu injection failing on ChatGPT after a sidebar DOM restructuring. Updated selectors: `itemSelector` to `div[role="menu"]`, `historySelector` to `#app-shell-sidebar`, `rowSelector` to `div[role="listitem"]`, and the active-chat title fallback selector to `#app-shell-sidebar a[aria-current="page"] span`. Updated the injected menu item HTML to match ChatGPT's new `data-menu-row-content` layout, preventing text wrapping.
 
 ## [1.2.0] - 2026-08-19

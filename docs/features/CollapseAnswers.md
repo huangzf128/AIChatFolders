@@ -15,15 +15,14 @@ Adds a "Fold AI replies" button in the right panel footer that collapses older A
 ### Architecture
 The feature is built on a **CSS-driven, JS-minimal** design:
 
-1. **Anchor Placement (JS)**: `collapseOldChats()` finds the last AI turn in the
-   conversation and adds the class `ai-chat-folder-anchor` to it. That is the
-   only DOM mutation JS performs.
+1. **Container Toggle (JS)**: `collapseOldChats()` adds `ai-chat-folder-anchor`
+   to the conversation container. On ChatGPT, stale anchors on cached
+   (non-active) containers are cleared first, and the last assistant response
+   also gets `ai-chat-folder-collapsed` directly for immediate visual feedback.
 
-2. **Batch Collapse (CSS)**: A `:has(~ .ai-chat-folder-anchor)` sibling selector
-   matches every AI turn that appears *before* the anchor, applying collapse
-   styles. The anchor turn itself is also collapsed (users typically want to
-   read only the *latest* answer fresh). Because the rule is pure CSS, any
-   AI turn added later by infinite-scroll is automatically covered.
+2. **Batch Collapse (CSS)**: Platform-specific selectors match all AI turns
+   except the last, applying collapse styles. Because the rule is pure CSS,
+   any AI turn added later by infinite-scroll is automatically covered.
 
 3. **Per-Answer Toggle (JS)**: A delegated click listener on the conversation
    container toggles `ai-chat-folder-expanded` / `ai-chat-folder-collapsed`
@@ -37,7 +36,7 @@ The feature is built on a **CSS-driven, JS-minimal** design:
 |----------|-----------|---------------|-------------------|-----------------|
 | Gemini | `[data-test-id="chat-history-container"]` | `.conversation-container` | `.response-content` | `-webkit-line-clamp: 2` |
 | Claude | `[data-testid="transcript-sizer"]` | `[data-perf-row="assistant"]` | `[data-perf-row="assistant"]` | `max-height: 6em` + `overflow: hidden` |
-| ChatGPT | `#thread` | `[data-turn-id-container]` | `section[data-turn="assistant"]` | `max-height: 6em` + `overflow: hidden` |
+| ChatGPT | `div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target="true"]` | `[data-chatgpt-search-unit-key$=":user"]` | `[data-chatgpt-search-unit-key$=":assistant"]` | `max-height: 6em` + `overflow: hidden` |
 
 - **Gemini** uses `-webkit-line-clamp` for truncation because its response
   element supports the `-webkit-box` display model.
@@ -47,19 +46,24 @@ The feature is built on a **CSS-driven, JS-minimal** design:
   `-webkit-line-clamp` correctly (same underlying issue as Claude's inline
   `display: flow-root` preventing `-webkit-box` from taking effect), so both
   share `CLAUDE_COLLAPSED_BODY` in `collapse.ts` despite the constant's name.
+- **ChatGPT** uses a container-level anchor (`ai-chat-folder-anchor` on the
+  conversation container) with `:not(:last-child)` on subwrappers to fold all
+  turns except the last. The last assistant response is also collapsed via JS
+  (`ai-chat-folder-collapsed`) so the user sees immediate feedback. On
+  conversation switch, anchors are removed via `aichatfolders:conversation-changed`.
 - **DeepSeek** is not supported because its virtual list (`ds-virtual-list`)
   removes DOM nodes as the user scrolls, making the anchor unreliable.
 
 ### Interaction Logic
 1. User clicks **"Fold AI replies"** in the footer → `collapseOldChats()` runs.
-2. All AI answers before the anchor collapse; a `::after` pseudo-element
+2. All AI answers before the last turn collapse; a `::after` pseudo-element
    shows "Click to show detail" in the top-right corner.
 3. Clicking a collapsed answer → expands it; the hint changes to
    "Click here to hide detail".
 4. Clicking the top 40px of an expanded answer → collapses it again.
 5. Clicking elsewhere in an expanded answer → no effect (normal interaction).
-6. Switching conversations → DOM is replaced, anchor class disappears,
-   all answers return to their default expanded state.
+6. Switching conversations → anchors are removed, all answers return to
+   their default expanded state.
 
 ### Files Involved
 - `src/adapters/LeftSidebar.ts` — base class: `collapseOldChats()`,
@@ -69,8 +73,10 @@ The feature is built on a **CSS-driven, JS-minimal** design:
   overridden `collapseOldChats()` (anchor goes on the last assistant row,
   not on the sizer).
 - `src/adapters/ChatGPTAdapter.ts` — ChatGPT selectors + `init()` call +
-  overridden `collapseOldChats()` (uses `querySelectorAll` instead of
-  `:scope >` because turns are not direct children of `#thread`).
+  overridden `collapseOldChats()` (container-level anchor +
+  `:not(:last-child)` CSS to fold all but the last turn; last assistant
+  also collapsed via JS for immediate feedback; conversation-change listener
+  removes stale anchors from cached containers).
 - `src/ui/RightSidebar.ts` — footer button, click delegation to adapter.
 - `src/ui/icons.ts` — `COLLAPSE_ANSWERS` SVG icon.
 - `src/ui/styles/collapse.ts` — all collapse/expand CSS rules per platform.
@@ -88,6 +94,7 @@ The feature is built on a **CSS-driven, JS-minimal** design:
 | Date | Commit | Description |
 |------|--------|--------------|
 | 2026-09-10 | `bfa7d87` | Initial implementation: "Fold AI replies" footer button across Gemini, Claude, and ChatGPT. CSS-driven anchor + `:has()` sibling selector, per-answer click toggle. DeepSeek intentionally left unsupported (virtual list removes off-screen DOM nodes, making the anchor unreliable). Also moved the existing "Hide chats" eye toggle from the header into the footer alongside the new button, so the footer becomes the panel's dedicated action-button area going forward; updated both buttons' labels/tooltips accordingly (see `docs/features/HideChats.md` revision history). |
+| 2026-10-09 | — | ChatGPT: reworked for new DOM structure (virtualized layout with subwrappers). Changed to container-level anchor + `:not(:last-child)` CSS instead of per-turn `:has(~ .anchor)` sibling selector. Selectors updated to `data-chatgpt-search-unit-key` attributes. Last assistant response also collapsed via JS for immediate feedback. Added `aichatfolders:conversation-changed` listener to remove stale anchors from cached containers on conversation switch. |
 
 ## TODO
 - [ ] Consider adding a per-answer toggle icon at the top of each collapsed/expanded answer

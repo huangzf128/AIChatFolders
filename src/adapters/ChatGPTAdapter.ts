@@ -16,9 +16,9 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 	protected override rowSelector = 'div[role="listitem"]';
 	protected override linkSelector = 'a[href*="/c/"]';
 
-	protected override collapseContainerSelector = '#thread';
-	protected override collapseTurnSelector = 'div[data-turn-id-container]';
-	protected override collapseResponseSelector = 'section[data-turn="assistant"]';
+	protected override collapseContainerSelector = 'div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target="true"]';
+	protected override collapseTurnSelector = 'div[data-chatgpt-search-unit-key$=":user"]';
+	protected override collapseResponseSelector = 'div[data-chatgpt-search-unit-key$=":assistant"]';
 
 	constructor() {
         super();
@@ -31,24 +31,44 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 		this.initClickListener();
 		this.initNativeChatSync();
 		this.initCollapseClickListener();
+		this.initConversationChangeListener();
 	}
 
 	/**
-	 * Override: turns are not direct children of #thread (there's an
-	 * intermediate div), so we use descendant query instead of :scope >.
+	 * Listens for SPA conversation changes and removes all collapse anchors.
+	 * ChatGPT caches conversation DOM; without cleanup, a stale anchor on a
+	 * cached (non-active) container would keep it collapsed when revisited.
+	 */
+	private initConversationChangeListener(): void {
+		window.addEventListener('aichatfolders:conversation-changed', () => {
+			document.querySelectorAll('.ai-chat-folder-anchor')
+				.forEach(el => el.classList.remove('ai-chat-folder-anchor'));
+		});
+	}
+
+	/**
+	 * Adds .ai-chat-folder-anchor on the active conversation container.
+	 * CSS folds all but the last turn via :not(:last-child). The last
+	 * assistant response is also collapsed directly so the user sees
+	 * immediate feedback even on long final replies.
+	 * Clears stale anchors from cached (non-active) containers first.
 	 */
 	public override collapseOldChats(): void {
-		if (!this.collapseContainerSelector || !this.collapseTurnSelector) return;
+		if (!this.collapseContainerSelector) return;
+
+		document.querySelectorAll('.ai-chat-folder-anchor')
+			.forEach(el => el.classList.remove('ai-chat-folder-anchor'));
+
 		const container = document.querySelector(this.collapseContainerSelector);
 		if (!container) return;
 
-		const turns = container.querySelectorAll(this.collapseTurnSelector);
-		if (turns.length === 0) return;
+		container.classList.add('ai-chat-folder-anchor');
 
-		container.querySelector(`${this.collapseTurnSelector}.ai-chat-folder-anchor`)
-			?.classList.remove('ai-chat-folder-anchor');
-
-		turns[turns.length - 1]!.classList.add('ai-chat-folder-anchor');
+		const assistants = container.querySelectorAll(this.collapseResponseSelector!);
+		const lastAssistant = assistants[assistants.length - 1];
+		if (lastAssistant) {
+			lastAssistant.classList.add('ai-chat-folder-collapsed');
+		}
 	}
 
     protected createMenuItem(): void {
