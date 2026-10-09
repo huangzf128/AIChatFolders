@@ -10,10 +10,10 @@ import { FolderManager } from '../models/FolderManager';
 export class ChatGPTAdapter extends LeftSidebarAdapter {
     platformId = 'chatgpt';
     // Target selector for ChatGPT's native popover action menu
-    itemSelector = '[role="menu"] > div[role="group"]:last-child';
-	protected override historySelector = '#history';
-	protected override scrollContainerSelector = 'nav[data-scrolled-from-end]';
-	protected override rowSelector = 'li';
+    itemSelector = 'div[role="menu"]';
+	protected override historySelector = '#app-shell-sidebar';
+	protected override scrollContainerSelector = 'div[data-app-action-sidebar-scroll]';
+	protected override rowSelector = 'div[role="listitem"]';
 	protected override linkSelector = 'a[href*="/c/"]';
 
 	protected override collapseContainerSelector = '#thread';
@@ -68,11 +68,15 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
         button.setAttribute('role', 'menuitem');
         button.style.cursor = 'pointer';
         button.innerHTML = `
-			<div class="flex min-w-0 items-center gap-1.5">
-				<div class="relative flex items-center justify-center [opacity:var(--menu-item-icon-opacity,1)] icon">${ICONS.GPT_MENU_ADD_FOLDER}</div>
-            	<span>Add to Folder</span>
+			<div data-menu-row-content="true" class="flex w-full items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+				<span class="min-w-0 flex-1 truncate">
+					<span class="flex w-full items-center gap-1.5">
+						<span class="leadingIcon-nJYd0H">${ICONS.GPT_MENU_ADD_FOLDER}</span>
+						<span class="truncate">Add to Folder</span>
+					</span>
+				</span>
+				<svg data-rtl-flip="" aria-hidden="true" class="Icon-X4VkKC text-tertiary" focusable="false" height="16" viewBox="0 0 16 16" width="16" xmlns="http://www.w3.org/2000/svg"><use href="/cdn/assets/icons-fac34c1b33b86f8f.svg#chevron-right-md-light-16" fill="currentColor"></use></svg>
 			</div>
-			<span style="font-size: 10px; opacity: 0.5;">▶</span>
         `;
 
         // Inject before the "Delete" item if possible, which is usually last
@@ -109,7 +113,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
         const chatId = pathParts[pathParts.length - 1];
         
         // ChatGPT's sidebar active item title
-        const activeChatEl = document.querySelector('#history a[data-active] div.truncate span');
+        const activeChatEl = document.querySelector('#app-shell-sidebar a[aria-current="page"] span');
         const titleText = activeChatEl?.textContent || document.title;
 
         return {

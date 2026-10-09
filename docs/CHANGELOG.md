@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 * Added a Favorites feature: chats can be starred from the folder panel. A favorited chat shows a filled star before its title (click to unfavorite); an unfavorited chat shows a hover-only outline star action next to delete (click to favorite).
 
+### Fixed
+
+* Fixed "Add to Folder" menu injection failing on ChatGPT after a sidebar DOM restructuring. Updated selectors: `itemSelector` to `div[role="menu"]`, `historySelector` to `#app-shell-sidebar`, `rowSelector` to `div[role="listitem"]`, and the active-chat title fallback selector to `#app-shell-sidebar a[aria-current="page"] span`. Updated the injected menu item HTML to match ChatGPT's new `data-menu-row-content` layout, preventing text wrapping.
+
 ## [1.2.0] - 2026-08-19
 
 ### Added

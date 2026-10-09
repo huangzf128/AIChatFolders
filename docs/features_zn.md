@@ -103,7 +103,7 @@
 
 | 平台   | 用户 ID 获取方式                                   | 导航策略                                   | 菜单注入位置                    |
 |--------|----------------------------------------------------|--------------------------------------------|-------------------------------|
-| ChatGPT | 从 `#client-bootstrap` 脚本解析 `session.account.id` | 优先点击 `a[href*="/c/"]`，回退 History API | `[role="menu"] > div[role="group"]:last-child` |
+| ChatGPT | 从 `#client-bootstrap` 脚本解析 `session.account.id` | 优先点击 `a[href*="/c/"]`，回退 History API | `div[role="menu"]` |
 | Gemini | 从 `<meta name="og-profile-acct">` 或 `WIZ_global_data` 提取 | 滚动加载历史列表并点击对应链接，回退全页跳转 | `div.mat-mdc-menu-content`    |
 | Claude | 从 localStorage 的 `__qk_hint_account_uuid` 或通过 React Fiber 注入桥接（MAIN world） | 点击 `a[href*="/chat/"]`，回退 History API | `[role="menu"] div:first-child` |
 | DeepSeek | 读取 `localStorage.userToken`，调用 `/api/v0/users/current` 获取 ID | 点击 `a[href*="/a/chat/s/"]`，回退 History API | `.ds-floating-position-wrapper .ds-dropdown-menu` |
