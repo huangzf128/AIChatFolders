@@ -123,12 +123,20 @@ leaving the native menu.
 ### Files Involved
 - `src/adapters/LeftSidebar.ts` — `initClickListener`,
   `resolveFallbackTargetChat` (default no-op), `showLevelMenu`,
+  `insertCascadeMenu` (default appends to `document.body`),
   `removeCascadeMenus`, `removeSubMenus`,
   `startCloseTimer`/`clearCloseTimer`, `closeNativeMenu` (default
   Escape-based implementation).
-- `src/adapters/ChatGPTAdapter.ts`, `DeepSeekAdapter.ts` —
-  `itemSelector`, `createMenuItem`, `getChatInfo` per platform; inherit
+- `src/adapters/ChatGPTAdapter.ts` —
+  `itemSelector`, `createMenuItem`, `getChatInfo` per platform; inherits
   the default `closeNativeMenu()` and `resolveFallbackTargetChat()`.
+  Overrides `insertCascadeMenu()` to append the cascade submenu into
+  `#browser-sidebar-popover` (when present) instead of `document.body`,
+  so that on narrow viewports the submenu sits inside the same stacking
+  context as the native menu and is not blocked by the sidebar popover's
+  overlay/backdrop. `historySelector` includes both
+  `#app-shell-sidebar` (wide) and `#browser-sidebar-popover` (narrow)
+  so chat-id resolution works in either layout.
 - `src/adapters/ClaudeAdapter.ts` — same, plus a
   `resolveFallbackTargetChat()` override for the expanded history
   table; inherits the default `closeNativeMenu()`.
@@ -162,6 +170,7 @@ leaving the native menu.
 | 2026-07-28 | `<commit-hash>` | Fixed the native platform menu staying open after picking a folder. Added a virtual `closeNativeMenu()`; default dispatches a real `Escape` keydown on `document.body` (Radix-style platforms). Gemini overrides it to click the real `.cdk-overlay-backdrop` element instead, since its Angular CDK Overlay menu only dismisses via that physical element being the click's actual target — a synthetic event elsewhere in the document never reached it. |
 | 2026-08-07 | `<commit-hash>` | Fixed "Add to Folder" failing to inject in Claude's expanded "Show more" history table. Moved `initClickListener()`'s chat-id resolution to a two-stage lookup: primary sidebar-shape lookup, then a new `protected virtual resolveFallbackTargetChat()` hook (default no-op) for platforms with an alternate native DOM shape. ClaudeAdapter overrides it to recognize the `<table data-cds="DataTable">` rows in that view and pull the title from a sibling `span.truncate` rather than the anchor itself. |
 | 2026-10-08 | `<commit-hash>` | Fixed "Add to Folder" failing on ChatGPT after a sidebar DOM restructuring. Updated `ChatGPTAdapter` selectors: `itemSelector` from `[role="menu"] > div[role="group"]:last-child` to `div[role="menu"]`, `historySelector` from `#history` to `#app-shell-sidebar`, `rowSelector` from `li` to `div[role="listitem"]`, and the active-chat title fallback from `#history a[data-active]` to `#app-shell-sidebar a[aria-current="page"]`. Updated the injected menu item HTML to match ChatGPT's new `data-menu-row-content` row layout, preventing text wrapping inside the native menu. |
+| 2026-10-09 | `<commit-hash>` | Fixed "Add to Folder" cascade submenu being unclickable on ChatGPT narrow viewports. Narrow layout uses `#browser-sidebar-popover` instead of `#app-shell-sidebar`; added it to `historySelector` so chat-id resolution works. Added `insertCascadeMenu()` virtual method on `LeftSidebarAdapter` (default: `document.body`); `ChatGPTAdapter` overrides it to append the cascade submenu into `#browser-sidebar-popover` when present, placing it inside the same stacking context as the native menu so the popover's overlay/backdrop does not intercept pointer events. |
 
 ## TODO
 - [ ] None currently.

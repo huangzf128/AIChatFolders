@@ -239,7 +239,7 @@ export const FolderStyles = `
 		border: 1px solid rgba(255, 255, 255, 0.12);
 		border-radius: 8px;
 		box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-		z-index: 100000; /* Ensure it appears above Gemini/ChatGPT menus */
+		z-index: 999999; /* Ensure it appears above Gemini/ChatGPT menus */
 		padding: 4px 0;
 		min-width: 180px;
 	}

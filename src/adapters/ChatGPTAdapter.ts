@@ -11,7 +11,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
     platformId = 'chatgpt';
     // Target selector for ChatGPT's native popover action menu
     itemSelector = 'div[role="menu"]';
-	protected override historySelector = '#app-shell-sidebar';
+	protected override historySelector = '#app-shell-sidebar, #browser-sidebar-popover';
 	protected override scrollContainerSelector = 'div[data-app-action-sidebar-scroll]';
 	protected override rowSelector = 'div[role="listitem"]';
 	protected override linkSelector = 'a[href*="/c/"]';
@@ -117,6 +117,15 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 			this.startCloseTimer();
 		});		
     }
+
+	protected override insertCascadeMenu(menu: HTMLElement): void {
+		const popover = document.querySelector('#browser-sidebar-popover');
+		if (popover) {
+			popover.appendChild(menu);
+		} else {
+			document.body.appendChild(menu);
+		}
+	}
 
     getChatInfo() {
 

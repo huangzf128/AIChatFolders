@@ -275,7 +275,7 @@ export abstract class LeftSidebarAdapter {
 			menu.appendChild(item);
 		});
 
-		document.body.appendChild(menu);
+		this.insertCascadeMenu(menu);
 
 		// UI Boundary calculation safeguards: Adjust constraints if elements exceed current viewport boundaries
 		const menuHeight = menu.offsetHeight;
@@ -343,6 +343,10 @@ export abstract class LeftSidebarAdapter {
             this.closeTimer = null;
         }
     }
+
+	protected insertCascadeMenu(menu: HTMLElement): void {
+		document.body.appendChild(menu);
+	}
 
 	/**
      * Purges all custom cascading context menu components from the active global DOM document.
