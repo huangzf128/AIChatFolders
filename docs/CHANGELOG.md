@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-09
+
 ### Added
 
 * Added a Favorites feature: chats can be starred from the folder panel. A favorited chat shows a filled star before its title (click to unfavorite); an unfavorited chat shows a hover-only outline star action next to delete (click to favorite).
@@ -14,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 * Fixed ChatGPT "Fold AI replies" not working after a DOM restructuring that introduced a virtualized layout with subwrapper divs. Reworked to use container-level anchor + `:not(:last-child)` CSS instead of per-turn `:has(~ .anchor)` sibling selector. Updated selectors to `data-chatgpt-search-unit-key` attributes. Added conversation-change listener to remove stale anchors from cached containers.
 * Fixed "Add to Folder" menu injection failing on ChatGPT after a sidebar DOM restructuring. Updated selectors: `itemSelector` to `div[role="menu"]`, `historySelector` to `#app-shell-sidebar`, `rowSelector` to `div[role="listitem"]`, and the active-chat title fallback selector to `#app-shell-sidebar a[aria-current="page"] span`. Updated the injected menu item HTML to match ChatGPT's new `data-menu-row-content` layout, preventing text wrapping.
+* Fixed ChatGPT cascading menu being covered by native menu: updated `insertCascadeMenu` selector to properly insert into the current `[role="menu"]` container, ensuring correct z-index and layering of our "Add to Folder" submenu.
 
 ## [1.2.0] - 2026-08-19
 
