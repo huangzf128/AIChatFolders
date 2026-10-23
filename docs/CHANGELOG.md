@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+* Fixed Gemini native chat sync (delete/rename detection) not working after Gemini's frontend switched from XHR to fetch for `batchexecute` calls. Added fetch interception alongside the existing XHR patch in `gemini-main-bridge.ts`.
+
 ## [1.3.2] - 2026-10-09
 
 ### Added

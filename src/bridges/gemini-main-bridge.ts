@@ -98,9 +98,48 @@ function isRenameRequestUrl(url: string): boolean {
   return url.includes('batchexecute') && url.includes(`rpcids=${RENAME_RPC_ID}`);
 }
 
-// ─── Native Conversation Deletion & Rename Interception (XHR) ─────────────
-// Confirmed via network tab: Gemini's batchexecute calls go through XHR,
-// not fetch. XHR is patched as the primary (not belt-and-braces) path here.
+// ─── Native Conversation Deletion & Rename Interception ─────────────────────
+// Gemini's batchexecute calls may go through either fetch or XHR depending
+// on the frontend version. Both are patched — fetch as the primary path
+// (current), XHR as belt-and-braces for older or alternative code paths.
+
+function resolveRequestUrl(input: RequestInfo | URL): string {
+	if (typeof input === 'string') return input;
+	if (input instanceof Request) return input.url;
+	return input.toString();
+}
+
+const originalFetch = window.fetch;
+window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
+	const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+	const url = resolveRequestUrl(input);
+
+	let bodyText: string | null = null;
+	if (method === 'POST' && (isDeleteRequestUrl(url) || isRenameRequestUrl(url))) {
+		if (typeof init?.body === 'string') {
+			bodyText = init.body;
+		} else if (input instanceof Request) {
+			try {
+				bodyText = await input.clone().text();
+			} catch (e) {
+				console.warn('[AIChatFolders] Failed to clone Gemini batchexecute request body.', e);
+			}
+		}
+	}
+
+	const response = await originalFetch.call(this, input, init);
+	if (method === 'POST' && response.ok && bodyText) {
+		if (isDeleteRequestUrl(url)) {
+			const chatId = extractDeletedChatId(bodyText);
+			if (chatId) notifyConversationChanged(chatId, 'delete');
+		} else if (isRenameRequestUrl(url)) {
+			const renamed = extractRenamedChat(bodyText);
+			if (renamed) notifyConversationChanged(renamed.chatId, 'rename', { newTitle: renamed.newTitle });
+		}
+	}
+	return response;
+};
+
 const originalXhrOpen = XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...rest: any[]) {
   (this as any).__aichatfolders_url = typeof url === 'string' ? url : url.toString();

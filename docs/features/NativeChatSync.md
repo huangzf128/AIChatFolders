@@ -100,10 +100,12 @@ longer has that title) on the native side.
   - `src/bridges/claude-main-bridge.ts` — delete: `DELETE
     /chat_conversations/{uuid}`. rename: `PUT` to the same endpoint,
     title in the JSON body.
-  - `src/bridges/gemini-main-bridge.ts` — delete: XHR,
-    `batchexecute?rpcids=qWymEb`, id from `f.req`. rename: XHR,
+  - `src/bridges/gemini-main-bridge.ts` — delete:
+    `batchexecute?rpcids=qWymEb`, id from `f.req`. rename:
     `batchexecute?rpcids=MUAZcd`, id/title pair nested in the inner
-    payload's third element.
+    payload's third element. Both are intercepted via fetch (primary)
+    and XHR (belt-and-braces), since Gemini's frontend switched from
+    XHR to fetch for batchexecute calls.
   - `src/bridges/chatgpt-main-bridge.ts` — delete: `DELETE
     /backend-api/conversation/id/{uuid}`. rename: `POST` to the same
     `{uuid}` path plus `/rename`, title in the JSON body (read via
@@ -118,7 +120,7 @@ longer has that title) on the native side.
 - Deletion detection is per-platform and hand-coded — there is no generic
   detection strategy across platforms:
   - Claude: `DELETE` request to `/chat_conversations/{uuid}`.
-  - Gemini: `batchexecute?rpcids=qWymEb` (XHR, id inside `f.req`).
+  - Gemini: `batchexecute?rpcids=qWymEb` (fetch+XHR, id inside `f.req`).
   - ChatGPT: `DELETE /backend-api/conversation/id/{uuid}` (id in the URL).
   - DeepSeek: `POST /api/v0/chat_session/delete` (id in the JSON body,
     not the URL).
@@ -134,7 +136,7 @@ longer has that title) on the native side.
 - Rename detection is per-platform and hand-coded, same as deletion —
   there is no generic detection strategy across platforms:
   - Claude: `PUT` to `/chat_conversations/{uuid}`.
-  - Gemini: `batchexecute?rpcids=MUAZcd` (XHR, id/title inside `f.req`).
+  - Gemini: `batchexecute?rpcids=MUAZcd` (fetch+XHR, id/title inside `f.req`).
   - ChatGPT: `POST /backend-api/conversation/id/{uuid}/rename` (id in
     the URL, title in the body).
   - DeepSeek: `POST /api/v0/chat_session/update_title` (id and title
@@ -148,6 +150,7 @@ longer has that title) on the native side.
 | 2026-08-04 | `<commit-hash>` | Extended to Gemini via `batchexecute?rpcids=qWymEb` XHR interception (`gemini-main-bridge.ts`). Fixed a silent id-mismatch bug where tracking-param query strings on Gemini sidebar links leaked into stored chat ids; introduced shared `LeftSidebarAdapter.cleanChatId()` to prevent recurrence on other platforms. |
 | 2026-08-04 | `<commit-hash>` | Extended to ChatGPT via fetch interception of `DELETE /backend-api/conversation/id/{uuid}` (`chatgpt-main-bridge.ts`), reusing the fetch-primary/XHR-fallback pattern from `claude-main-bridge.ts`. Extended to DeepSeek via fetch interception of `POST /api/v0/chat_session/delete` (`deepseek-main-bridge.ts`), reading `chat_session_id` from the JSON request body since the id isn't in the URL. All four supported platforms now have native deletion sync. |
 | 2026-08-05 | `<commit-hash>` | Extended `NativeChatSync` from delete-only to also cover native title renames, across all four platforms (Claude `PUT`, ChatGPT `POST .../rename`, Gemini `batchexecute?rpcids=MUAZcd`, DeepSeek `POST update_title`). Fixed `FolderManager.renameNode()` short-circuiting on the first match instead of updating every node sharing an id across multiple folders. |
+| 2026-10-23 | `<commit-hash>` | Fixed Gemini native chat sync not working after Gemini's frontend switched from XHR to fetch for `batchexecute` calls. Added fetch interception (primary) alongside the existing XHR patch (belt-and-braces) in `gemini-main-bridge.ts`, matching the dual-interception pattern already used by the other three platforms. |
 
 ## TODO
 - [ ] None currently.
