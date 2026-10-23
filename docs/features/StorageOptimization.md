@@ -49,7 +49,8 @@ cross-device global setting.
     `parentId` from recursion position, fills in every omitted field
     with its default (`isCollapsed: false`, `isChat: false`,
     `color: DEFAULT_COLOR_CODE` for folders / `CHAT_LEAF_COLOR_CODE`
-    for chats, `children: []`).
+    for chats, `children: []`, `marker: 0`). Also migrates legacy
+    `fv: 1` to `marker: 1` (see ChatMarkers.md).
   - `dehydrate(nodes)` — runtime → on-disk. Drops `parentId`, abbreviates
     keys, omits fields at their default.
   - These are the *only* two places that touch the on-disk shape.

@@ -22,9 +22,9 @@ export interface FolderData {
     parentId: string | null;
     children: FolderData[];
     isChat?: boolean;
-    /** Whether this chat leaf has been starred by the user. Meaningless (kept
-     * false) for folders — only chat leaves can be favorited. */
-    isFavorite?: boolean;
+    /** Marker code shown before a chat leaf's title (see MARKER_TABLE).
+     * Absent means no marker. Meaningless for folders. */
+    marker?: number;
 }
 
 /**
@@ -125,6 +125,18 @@ export const COLOR_TABLE: Record<number, string> = {
 	8: '#fd79a8',
 };
 export const DEFAULT_COLOR_CODE = 1;
+
+/**
+ * Chat marker codes. Persisted as numbers, so the same append-only rule as
+ * COLOR_TABLE applies: never renumber or reuse a code.
+ * The value is a human-readable label (used for tooltips).
+ */
+export const MARKER_TABLE: Record<number, string> = {
+	1: 'Favorite',
+	2: 'Green',
+	3: 'Red',
+	4: 'In progress',
+};
 
 /** Resolves a stored color code to its display hex value, falling back to the default. */
 export function resolveColor(code: number): string {

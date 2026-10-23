@@ -31,6 +31,8 @@
   All saved chats appear as clickable links in the extension panel. Clicking one navigates to that conversation on the target platform.
 - **Remove a chat from a folder**  
   Hover over a chat item in the sidebar and click the "🗑️" button to remove its reference (the original chat on the platform remains untouched).
+- **Chat markers**  
+  Mark a chat with a visual badge (⭐ Favorite, 🟩 Green, 🟥 Red, 🔵 In progress). Hover the "+" button in the actions row to reveal a picker strip, then click an icon to set it. Click an existing badge before the title to clear it. Markers sync across all copies of the same chat and work in both local and cloud storage modes.
 
 ### 2.3 Smooth Navigation (SPA Support)
 
@@ -108,6 +110,7 @@ The project follows the **Adapter Pattern** to ensure cross-platform reusability
   - `children`: `FolderData[]`
   - `isCollapsed`: `boolean`
   - `isChat`: `boolean` — if `true`, the node is a chat leaf (contains no children).
+  - `marker`: `number` (optional) — visual badge code for chat leaves (see [Chat Markers](features/ChatMarkers.md)).
 - **Chat nodes**: Only store `id`, `title`, and a dynamically resolved `url`. The actual conversation content remains on the AI platform.
 
 ### 4.3 Platform Adaptation Details

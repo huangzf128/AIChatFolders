@@ -5,10 +5,10 @@
  */
 import { FolderManager } from '../models/FolderManager';
 import { FolderEditor } from './FolderEditor';
-import { ICONS } from './icons';
+import { ICONS, MARKER_ICONS } from './icons';
 import { GlobalStyles } from '../ui/styles/index';
 import type { FolderData, AccountSettings, DomainSettings, NativeChangeType } from '../models/Folder';
-import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS, DEFAULT_GLOBAL_SETTING, resolveColor } from '../models/Folder';
+import { DEFAULT_ACCOUNT_SETTINGS, DEFAULT_DOMAIN_SETTINGS, DEFAULT_GLOBAL_SETTING, MARKER_TABLE, resolveColor } from '../models/Folder';
 import { LeftSidebarAdapter } from '../adapters/LeftSidebar';
 
 // Class name applied to native sidebar rows that should be hidden
@@ -344,17 +344,16 @@ export class RightSidebar {
                 return;
 			}
 
-			// Toggle a chat's favorite (starred) state. Shared by both the
-			// hover-only "add to favorites" action button and the always-visible
-			// "click to unfavorite" star shown before a favorited chat's title —
-			// see docs/features/Favorites.md. The current state is read straight
-			// off the clicked element's own data-favorite attribute, so no tree
-			// lookup is needed just to know which way to toggle.
-			const favToggle = target.closest('.aichat-favorite-toggle') as HTMLElement;
-			if (favToggle) {
-				const id = favToggle.dataset.id!;
-				const isFavorite = favToggle.dataset.favorite === '1';
-				const updated = await FolderManager.setFavorite(id, !isFavorite);
+			// Marker handling:
+			// - clicking the badge before a title clears the marker
+			// - clicking an option in the "+" picker sets/replaces the marker
+			const markerBadge = target.closest('.aichat-marker-badge') as HTMLElement | null;
+			const markerOption = target.closest('.aichat-marker-option') as HTMLElement | null;
+			if (markerBadge || markerOption) {
+				const el = (markerBadge ?? markerOption)!;
+				const id = el.dataset.id!;
+				const marker = markerBadge ? null : Number(el.dataset.marker);
+				const updated = await FolderManager.setMarker(id, marker);
 				this.render(updated);
 				return;
 			}
@@ -980,37 +979,40 @@ export class RightSidebar {
 			// Render branch leaf instances representing mapped native chat history items
 			if (folder.isChat) {
 				const targetChatId = folder.id;
-				const isFavorite = !!folder.isFavorite;
+				const marker = folder.marker ?? 0;
 				let dynamicUrl = '#';
 				if (this.adapter) {
 					dynamicUrl = this.adapter.resolveChatUrl(targetChatId);
 				}
 
-				// Favorited: a filled star sits before the title, always visible,
-				// and is itself the unfavorite control — the hover-only action
-				// button below is not shown, since only one star should ever be
-				// visible for a given chat at a time.
-				const favoriteStar = isFavorite
-					? `<span class="aichat-favorite-toggle aichat-favorite-star" data-id="${folder.id}" data-favorite="1" title="Remove from favorites">${ICONS.STAR_FILLED}</span>`
+				// Badge shown before the title; clicking it removes the marker
+				const markerBadge = marker && MARKER_ICONS[marker]
+					? `<span class="aichat-marker-badge" data-id="${folder.id}" data-marker="${marker}" title="Remove marker">${MARKER_ICONS[marker]}</span>`
 					: '';
-				// Not favorited: a hover-only outline star sits in the actions row
-				// alongside delete, same as any other per-row action button.
-				const favoriteActionBtn = !isFavorite
-					? `<span class="aichat-favorite-toggle favorite-btn" data-id="${folder.id}" data-favorite="0" title="Add to favorites">${ICONS.STAR}</span>`
-					: '';
+
+				// Hover picker: one option per marker code
+				const markerOptions = Object.keys(MARKER_ICONS).map(Number).map(code =>
+					`<span class="aichat-marker-option" data-id="${folder.id}" data-marker="${code}" title="${MARKER_TABLE[code] ?? ''}">${MARKER_ICONS[code]}</span>`
+				).join('');
+
+				const markerAdd = `
+					<div class="aichat-marker-wrap">
+						<span class="aichat-marker-add" title="Add marker">${ICONS.PLUS}</span>
+						<div class="aichat-marker-picker">${markerOptions}</div>
+					</div>`;
 
 				return `
 				<div class="aichat-folder-node aichat-chat-leaf" data-id="${folder.id}">
 					<div class="aichat-folder-card aichat-chat-card" data-id="${folder.id}" draggable="true">
 						<div class="aichat-folder-header">
 							<span class="aichat-folder-title">
-								${favoriteStar}
+								${markerBadge}
 								<a href="${dynamicUrl}" class="aichat-chat-anchor" title="${folder.name}" target="_blank" data-chat-id="${targetChatId}">
 									${folder.name}
 								</a>
 							</span>
 							<div class="aichat-actions">
-								${favoriteActionBtn}
+								${markerAdd}
 								<span class="delete-btn" data-id="${folder.id}">${ICONS.TRASH}</span>
 							</div>
 						</div>

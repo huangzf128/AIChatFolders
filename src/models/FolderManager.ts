@@ -61,7 +61,9 @@ interface StoredNode {
     cd?: 1;
     /** isChat. Only written when true (the non-default state — absence means folder). */
     isC?: 1;
-    /** isFavorite. Only written when true (the non-default state). Only meaningful for chat leaves. */
+    /** Marker code. Only written when set. Only meaningful for chat leaves. */
+    mk?: number;
+    /** Legacy favorite flag (pre-marker). Read-only: treated as marker 1, never written. */
     fv?: 1;
 }
 
@@ -89,8 +91,10 @@ interface SyncChatRef {
     id: string;   // native chat id, as issued by the AI platform
     nm: string;   // chat title
     fid: string;  // id of the folder (in the shared tree) it's filed under
-    /** Favorite flag. Omitted (not just falsy) when unset, to match the
-     * omit-default convention used elsewhere in this file's on-disk shapes. */
+    /** Marker code. Omitted when unset, to match the omit-default
+     * convention used elsewhere in this file's on-disk shapes. */
+    mk?: number;
+    /** Legacy favorite flag. Read-only: treated as marker 1, never written. */
     fav?: 1;
 }
 
@@ -515,6 +519,8 @@ export class FolderManager {
 		if (!nodes) return [];
 		return nodes.map((n): FolderData => {
 			const isChat = n.isC === 1;
+			// Legacy `fv: 1` (old favorites) maps to marker 1 (star)
+			const marker = n.mk ?? (n.fv === 1 ? 1 : 0);
 			return {
 				id: n.id,
 				name: n.nm,
@@ -522,7 +528,7 @@ export class FolderManager {
 				parentId,
 				isCollapsed: n.cd === 1,
 				isChat,
-				isFavorite: n.fv === 1,
+				...(marker ? { marker } : {}),
 				children: this.hydrate(n.ch, n.id),
 			};
 		});
@@ -539,7 +545,7 @@ export class FolderManager {
 			if (!f.isChat) out.cl = f.color; // color is meaningless for chat leaves — never persisted for them
 			if (f.isCollapsed) out.cd = 1;
 			if (f.isChat) out.isC = 1;
-			if (f.isFavorite) out.fv = 1;
+			if (f.marker) out.mk = f.marker;
 			if (f.children && f.children.length > 0) out.ch = this.dehydrate(f.children);
 			return out;
 		});
@@ -591,7 +597,7 @@ export class FolderManager {
             for (const f of list) {
                 if (f.isChat && f.parentId) {
                     const ref: SyncChatRef = { id: f.id, nm: f.name, fid: f.parentId };
-                    if (f.isFavorite) ref.fav = 1;
+                    if (f.marker) ref.mk = f.marker;
                     refs.push(ref);
                 }
                 if (f.children?.length) walk(f.children);
@@ -622,10 +628,12 @@ export class FolderManager {
             if (!parent) continue; // orphaned reference — parent folder no longer exists
             parent.children = parent.children || [];
             if (parent.children.some(c => c.isChat && c.id === ref.id)) continue; // de-dupe
+            // Legacy `fav: 1` (old favorites) maps to marker 1 (star)
+            const marker = ref.mk ?? (ref.fav === 1 ? 1 : 0);
             parent.children.push({
                 id: ref.id, name: ref.nm, color: CHAT_LEAF_COLOR_CODE,
                 parentId: ref.fid, children: [], isChat: true,
-                isFavorite: ref.fav === 1,
+                ...(marker ? { marker } : {}),
             });
         }
         return folderTree;
@@ -1034,20 +1042,20 @@ export class FolderManager {
 	}
 
 	/**
-	 * Sets the favorite (starred) flag on every node matching the given id,
-	 * in place. Same all-matches semantics as renameNode() — a single chat
-	 * saved into multiple folders has its favorite state kept in sync
-	 * across every copy, rather than diverging per reference.
+	 * Sets (or clears, when `marker` is null) the marker on every chat leaf
+	 * matching the given id. Same all-matches semantics as renameNode():
+	 * a chat saved into multiple folders keeps one consistent marker.
 	 * @param {string} id - Unique identifier of the target chat leaf.
-	 * @param {boolean} isFavorite - The new favorite state.
+	 * @param {number | null} marker - Marker code (see MARKER_TABLE), or null to clear.
 	 * @returns {Promise<FolderData[]>} The updated folder tree.
 	 */
-	static async setFavorite(id: string, isFavorite: boolean): Promise<FolderData[]> {
+	static async setMarker(id: string, marker: number | null): Promise<FolderData[]> {
 		const folders = await this.getFolders();
 		const applyInTree = (list: FolderData[]): void => {
 			for (const f of list) {
 				if (f.id === id && f.isChat) {
-					f.isFavorite = isFavorite;
+					if (marker) f.marker = marker;
+					else delete f.marker;
 				}
 				if (f.children) applyInTree(f.children);
 			}

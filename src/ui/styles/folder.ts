@@ -359,39 +359,44 @@ export const FolderStyles = `
 		opacity: 1;
 	}
 
-	/* Favorite (starred) chats: hover-only "add to favorites" action button,
-	   styled like the other per-row action buttons but tinted gold instead
-	   of the trash icon's red, so it reads as a distinct affordance. */
-	.aichat-chat-leaf .favorite-btn {
-		color: #f1c40f;
-		opacity: 0;
-		transition: opacity 0.15s ease;
-	}
-	.aichat-chat-leaf:hover .favorite-btn {
-		opacity: 0.4;
-	}
-	.aichat-chat-leaf .favorite-btn:hover {
-		opacity: 1 !important;
-		filter: brightness(1.2);
-	}
-
-	/* Always-visible star shown before a favorited chat's title. Sits inside
-	   .aichat-folder-title (a flex row) as its own item, not inside the
-	   anchor — so it stays clickable (toggling unfavorite) without
-	   triggering chat navigation, and doesn't get clipped by the anchor's
-	   own text-overflow: ellipsis. */
-	.aichat-favorite-star {
+	/* Marker badge shown before a chat title. Clicking it clears the marker. */
+	.aichat-marker-badge {
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		margin-right: 4px; /* chat-leaf titles use gap: 0, so spacing is explicit here */
-		color: #f1c40f;
+		margin-right: 4px; /* chat-leaf titles use gap: 0, so spacing is explicit */
 		cursor: pointer;
 		transition: transform 0.15s ease;
 	}
-	.aichat-favorite-star:hover {
-		transform: scale(1.15);
+	.aichat-marker-badge:hover { transform: scale(1.15); }
+
+	/* "+" button in the actions row; hovering it reveals the picker */
+	.aichat-marker-wrap {
+		position: relative;
+		display: flex;
+		align-items: center;
 	}
+	.aichat-marker-add { color: #aaa; }
+	.aichat-marker-add:hover { color: #fff; }
+
+	/* Picker opens to the LEFT of the "+" as a horizontal strip, so it never
+	   overflows the scrollable panel body vertically. It touches the "+" with
+	   no gap, so moving the mouse onto it doesn't break the :hover chain. */
+	.aichat-marker-picker {
+		display: none;
+		position: absolute;
+		right: 100%;
+		top: 50%;
+		transform: translateY(-50%);
+		gap: 8px;
+		padding: 5px 10px;
+		background: #2f2f2f;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 8px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+		z-index: 1;
+	}
+	.aichat-marker-wrap:hover .aichat-marker-picker { display: flex; }
 
 	/* Remove extra spacing between chat items */
 	.aichat-chat-leaf {

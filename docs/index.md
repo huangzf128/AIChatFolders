@@ -18,6 +18,7 @@ A browser extension that brings a folder system to ChatGPT, Gemini, Claude, and 
 - [Native Menu Injection](features/FolderMenuInjection.md) — "Add to Folder" in platform menus
 - [Hide Categorized Chats](features/HideChats.md) — Hide chats already in folders from native sidebar
 - [Native Chat Sync](features/NativeChatSync.md) — Mirror native deletions/renames automatically
+- [Chat Markers](features/ChatMarkers.md) — Visual badges (favorite, green, red, in-progress) on chat leaves
 - [Storage Optimization](features/StorageOptimization.md) — Compact on-disk storage layout
 
 ### Changelog

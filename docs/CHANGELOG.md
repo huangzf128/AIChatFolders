@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-23
+
+### Added
+
+* Added chat markers: replace the single boolean favorite flag with a numeric marker system supporting four visual badges (⭐ Favorite, 🟩 Green, 🟥 Red, 🔵 In progress). Hover the "+" action button to reveal a picker strip; click a badge before the title to clear it. Backward-compatible migration from old `fv`/`fav` fields to new `mk` field.
+
 ### Fixed
 
 * Fixed Gemini native chat sync (delete/rename detection) not working after Gemini's frontend switched from XHR to fetch for `batchexecute` calls. Added fetch interception alongside the existing XHR patch in `gemini-main-bridge.ts`.
