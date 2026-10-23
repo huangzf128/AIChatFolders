@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-23
+
+### Changed
+
+* Refreshed the right panel's overall look (header, body, footer): per-platform accent color, accent line under the header, square header buttons, pill-style footer buttons, an empty-state hint, and a shadow while open. CSS-only apart from a platform class on the panel; no folder/chat styling or behavior changed.
+
 ## [1.3.3] - 2026-10-23
 
 ### Added

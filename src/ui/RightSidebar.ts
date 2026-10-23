@@ -282,9 +282,13 @@ export class RightSidebar {
     private createPanel(): void {
         this.panel = document.createElement('div');
         this.panel.className = 'aichat-panel';
+		// Platform class drives the accent color (see layout.ts), same idea as the dock trigger
+		if (this.adapter) {
+			this.panel.classList.add(`aichat-panel-${this.adapter.platformId.toLowerCase()}`);
+		}
 		this.panel.innerHTML = `
 			<div class="aichat-header">
-				<h2 style="color:white; margin:0; font-size:18px;">Chat Folder <a href="https://github.com/huangzf128/AIChatFolders/wiki" target="_blank" rel="noopener" class="aichat-help-link" title="Help & Documentation"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="7"/><text x="8" y="12" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor" stroke="none">?</text></svg></a></h2>
+				<h2 class="aichat-title">Chat Folder <a href="https://github.com/huangzf128/AIChatFolders/wiki" target="_blank" rel="noopener" class="aichat-help-link" title="Help & Documentation"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="7"/><text x="8" y="12" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor" stroke="none">?</text></svg></a></h2>
 				<div style="display: flex; gap: 12px; align-items: center;">
 					<div id="add-folder-root" class="aichat-header-btn" title="Add New Top-level Folder">
 						${ICONS.ADD_FOLDER_HEADER}
