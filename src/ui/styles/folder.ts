@@ -8,7 +8,7 @@ export const FolderStyles = `
     .aichat-folder-card {
         background: #212121;
         border-radius: 8px;
-        padding: 6px 12px;
+        padding: 4px 12px;
         margin-bottom: 0;
         border: 1px solid #333;
         transition: all 0.2s ease;

@@ -94,12 +94,12 @@ export const CollapseStyles = `
     /* Container has .ai-chat-folder-anchor (toggled by JS). Each subwrapper
        (anonymous div) is a sibling under .flex.flex-col. :not(:last-child)
        folds all subwrappers except the last, keeping the latest turn expanded. */
-    div[data-chatgpt-conversation-selection-target="true"].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":user"],
-    div[data-chatgpt-conversation-selection-target="true"].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":assistant"] {
+    div[data-chatgpt-conversation-selection-target].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":user"],
+    div[data-chatgpt-conversation-selection-target].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":assistant"] {
         ${CLAUDE_COLLAPSED_BODY}
     }
-    div[data-chatgpt-conversation-selection-target="true"].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":user"]::after,
-    div[data-chatgpt-conversation-selection-target="true"].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":assistant"]::after {
+    div[data-chatgpt-conversation-selection-target].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":user"]::after,
+    div[data-chatgpt-conversation-selection-target].ai-chat-folder-anchor > div > .flex.flex-col > div:not(:last-child) [data-chatgpt-search-unit-key$=":assistant"]::after {
         ${HINT_BADGE_BODY}
     }
 

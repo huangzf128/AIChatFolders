@@ -16,7 +16,7 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 	protected override rowSelector = 'div[role="listitem"]';
 	protected override linkSelector = 'a[href*="/c/"]';
 
-	protected override collapseContainerSelector = 'div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target="true"]';
+	protected override collapseContainerSelector = 'div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target]';
 	protected override collapseTurnSelector = 'div[data-chatgpt-search-unit-key$=":user"]';
 	protected override collapseResponseSelector = 'div[data-chatgpt-search-unit-key$=":assistant"]';
 
@@ -54,12 +54,14 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 	 * Clears stale anchors from cached (non-active) containers first.
 	 */
 	public override collapseOldChats(): void {
-		if (!this.collapseContainerSelector) return;
-
 		document.querySelectorAll('.ai-chat-folder-anchor')
 			.forEach(el => el.classList.remove('ai-chat-folder-anchor'));
 
-		const container = document.querySelector(this.collapseContainerSelector);
+		const chatId = window.location.pathname.split('/').pop();
+		if (!chatId) return;
+
+		const selector = `div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target="${chatId}"]`;
+		const container = document.querySelector(selector);
 		if (!container) return;
 
 		container.classList.add('ai-chat-folder-anchor');

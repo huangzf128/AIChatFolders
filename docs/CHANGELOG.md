@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-10-23
+
+### Fixed
+
+* Fixed ChatGPT "Fold AI replies" not working after ChatGPT changed `data-chatgpt-conversation-selection-target` attribute value from `"true"` to the conversation ID. Updated `collapseOldChats()` to dynamically build the selector using the chatId from the URL, and updated CSS selectors to use attribute-presence matching.
+
+### Changed
+
+* Reduced folder card vertical padding from 6px to 4px for a more compact layout.
+
 ## [1.3.4] - 2026-10-23
 
 ### Changed

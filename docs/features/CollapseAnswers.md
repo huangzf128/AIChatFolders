@@ -36,7 +36,7 @@ The feature is built on a **CSS-driven, JS-minimal** design:
 |----------|-----------|---------------|-------------------|-----------------|
 | Gemini | `[data-test-id="chat-history-container"]` | `.conversation-container` | `.response-content` | `-webkit-line-clamp: 2` |
 | Claude | `[data-testid="transcript-sizer"]` | `[data-perf-row="assistant"]` | `[data-perf-row="assistant"]` | `max-height: 6em` + `overflow: hidden` |
-| ChatGPT | `div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target="true"]` | `[data-chatgpt-search-unit-key$=":user"]` | `[data-chatgpt-search-unit-key$=":assistant"]` | `max-height: 6em` + `overflow: hidden` |
+| ChatGPT | `div[data-app-shell-active-page="true"] div[data-chatgpt-conversation-selection-target="<chatId>"]` (dynamic) | `[data-chatgpt-search-unit-key$=":user"]` | `[data-chatgpt-search-unit-key$=":assistant"]` | `max-height: 6em` + `overflow: hidden` |
 
 - **Gemini** uses `-webkit-line-clamp` for truncation because its response
   element supports the `-webkit-box` display model.
