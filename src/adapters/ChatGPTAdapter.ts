@@ -137,6 +137,16 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 			button.setAttribute('data-state', 'open');
 			
 			this.clearCloseTimer();
+
+			// Resolve the container from the hovered item rather than trusting the
+			// field assigned above. Our item survives menu close/reopen (ChatGPT
+			// pre-renders a menu per row and keeps it mounted), so on a second visit
+			// to a row createMenuItem() returns early and never refreshes the field.
+			// It would still point at the last *other* row we injected into, and the
+			// cascade would be appended into that hidden menu instead of this one.
+			this.currentMenuContainer =
+				button.closest<HTMLElement>(this.itemSelector) ?? menuContainer;
+
 			const rect = button.getBoundingClientRect();
 			const folders = await FolderManager.getFolders();
 			this.showLevelMenu({ left: rect.left, right: rect.right, top: rect.top }, folders);

@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 * Fixed ChatGPT "Add to Folder" menu item not appearing after ChatGPT started pre-rendering the context menu inside every chat row (`div[role="listitem"]`). The menu is now resolved from the click target (`trigger.closest(rowSelector).querySelector(itemSelector)`) instead of a global `document.querySelector`, which previously matched the hidden menu of the first row and injected nothing.
 * Fixed the injected menu item drifting upward in the native menu for chats inside a project. Such rows mount extra items (e.g. "Remove from project") after our injection, so a `MutationObserver` now keeps our item pinned as the last native entry.
 * Fixed the folder cascade menu being covered by ChatGPT's native menu. All cascade levels are now mounted inside ChatGPT's own menu container instead of `#browser-sidebar-popover`/`document.body`, so they share the same ancestor chain and stacking context as ChatGPT's native submenus.
+* Fixed the folder cascade menu not opening on a chat row that had already been visited once, after another row's menu had been opened in between. The injected item stays mounted while the native menu is closed, so re-entering the row skipped re-injection and the cached menu container still pointed at the previous row; the container is now re-resolved from the hovered item every time the submenu opens.
 
 ### Changed
 
