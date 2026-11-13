@@ -11,6 +11,11 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
     platformId = 'chatgpt';
     // Target selector for ChatGPT's native popover action menu
     itemSelector = 'div[role="menu"]';
+	// The native menu container the current "Add to Folder" item lives in.
+	// The cascade menu is inserted as its sibling so it shares the exact same
+	// ancestor chain (and therefore the same clipping / stacking context) as
+	// ChatGPT's own submenus.
+	private currentMenuContainer: HTMLElement | null = null;
 	protected override historySelector = '#app-shell-sidebar, #browser-sidebar-popover';
 	protected override scrollContainerSelector = 'div[data-app-action-sidebar-scroll]';
 	protected override rowSelector = 'div[role="listitem"]';
@@ -73,10 +78,13 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 		}
 	}
 
-    protected createMenuItem(): void {
+    protected createMenuItem(trigger?: HTMLElement): void {
 
-		const menuContainer = document.querySelector(this.itemSelector);
-			
+		// The menu is rendered inside the clicked chat row, so resolve it from the
+		// click target. A global querySelector would hit the first of many rows.
+		const row = trigger?.closest<HTMLElement>(this.rowSelector) ?? null;
+		const menuContainer = row?.querySelector<HTMLElement>(this.itemSelector) ?? null;
+
 		// Skip if menu not found or button already exists
 		if (!menuContainer || menuContainer.querySelector('.aichat-folder-menu-item')) return;
 
@@ -103,6 +111,26 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
 
         // Inject before the "Delete" item if possible, which is usually last
         menuContainer.appendChild(button);
+		this.currentMenuContainer = menuContainer;
+
+		// Some rows (e.g. chats inside a project) mount extra native items AFTER
+		// our injection, which pushes our item upward. Keep it pinned to the end
+		// for as long as it stays connected. Our own cascade menu is excluded
+		// from the comparison, otherwise it would look like we are never last
+		// and the observer would append on every mutation.
+		const pinLast = new MutationObserver(() => {
+			if (!button.isConnected) {
+				pinLast.disconnect();
+				return;
+			}
+			const lastNative = Array.from(menuContainer.children)
+				.filter((el) => !el.classList.contains('aichat-cascade-menu'))
+				.pop();
+			if (lastNative !== button) {
+				menuContainer.appendChild(button);
+			}
+		});
+		pinLast.observe(menuContainer, { childList: true });
 
 		button.addEventListener('mouseenter', async () => {
 
@@ -121,6 +149,27 @@ export class ChatGPTAdapter extends LeftSidebarAdapter {
     }
 
 	protected override insertCascadeMenu(menu: HTMLElement): void {
+		const level = parseInt(menu.className.match(/level-(\d+)/)?.[1] || '0');
+
+		// Every level stays inside ChatGPT's own menu container so that all of
+		// them share the exact same ancestor chain (and stacking context) as
+		// ChatGPT's native submenus. Mounting deeper levels on #browser-sidebar-popover
+		// puts them back under the clipped/contained sidebar, which is why they
+		// used to be covered by the native menu.
+		if (this.currentMenuContainer?.isConnected) {
+			if (level === 0) {
+				this.currentMenuContainer.appendChild(menu);
+				return;
+			}
+			const parentLevel = this.currentMenuContainer.querySelector<HTMLElement>(
+				`.aichat-cascade-menu.level-${level - 1}`
+			);
+			if (parentLevel) {
+				parentLevel.appendChild(menu);
+				return;
+			}
+		}
+
 		const popover = document.querySelector('#browser-sidebar-popover');
 		if (popover) {
 			popover.appendChild(menu);

@@ -146,7 +146,7 @@ export abstract class LeftSidebarAdapter {
 			}
 			// Defer execution slightly to allow the SPA to render the context menu DOM into the document
 			setTimeout(() => {
-				this.createMenuItem();
+				this.createMenuItem(target);
 			}, 50);
 			
 		}, true); // Use capture phase to ensure the ID is grabbed before the menu opens
@@ -182,10 +182,13 @@ export abstract class LeftSidebarAdapter {
 	/**
 	* Locates the native menu container and injects the "Add to Folder" button.
 	* Platform-specific because each site's menu markup/classes differ.
+	* @param trigger The element the user clicked (usually the native "..." button),
+	*   used by adapters whose menu is rendered inside the clicked chat row rather
+	*   than portaled to the end of <body>.
 	* @abstract
 	* @protected
 	*/
-	protected abstract createMenuItem(): void;
+	protected abstract createMenuItem(trigger?: HTMLElement): void;
 
 	/**
 	 * Listens for a native-chat-change report from a platform's MAIN-world
@@ -221,7 +224,12 @@ export abstract class LeftSidebarAdapter {
 		folders: any[],
 		level: number = 0
 	): void {
+		// A menu at level N replaces whatever level N menu was previously open
+		// (e.g. hovering a second sibling folder that also has children). Without
+		// this, the submenu of the first sibling stays on screen next to the new
+		// one. Only levels >= N are cleared so ancestors remain intact.
 		if (level === 0) this.removeCascadeMenus();
+		else this.removeSubMenus(level - 1);
 
 		const pureFolders = (folders || []).filter(f => !f.isChat);
 		if (pureFolders.length === 0 && level > 0) return;

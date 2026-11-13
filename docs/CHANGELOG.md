@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-11-13
+
+### Fixed
+
+* Fixed ChatGPT "Add to Folder" menu item not appearing after ChatGPT started pre-rendering the context menu inside every chat row (`div[role="listitem"]`). The menu is now resolved from the click target (`trigger.closest(rowSelector).querySelector(itemSelector)`) instead of a global `document.querySelector`, which previously matched the hidden menu of the first row and injected nothing.
+* Fixed the injected menu item drifting upward in the native menu for chats inside a project. Such rows mount extra items (e.g. "Remove from project") after our injection, so a `MutationObserver` now keeps our item pinned as the last native entry.
+* Fixed the folder cascade menu being covered by ChatGPT's native menu. All cascade levels are now mounted inside ChatGPT's own menu container instead of `#browser-sidebar-popover`/`document.body`, so they share the same ancestor chain and stacking context as ChatGPT's native submenus.
+
+### Changed
+
+* Opening a submenu at a given depth now removes any other submenu previously opened at the same depth, so hovering a second sibling folder no longer leaves the first sibling's submenu on screen.
+* `createMenuItem()` now accepts the click target as an optional argument so adapters whose menu renders inside the clicked row can locate it. Existing adapters (Claude, DeepSeek, Gemini) are unaffected.
+
 ## [1.3.5] - 2026-10-23
 
 ### Fixed

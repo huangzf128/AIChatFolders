@@ -51,10 +51,16 @@ leaving the native menu.
      page. See "Per-platform fallback" below.
 - Each adapter (`ChatGPTAdapter`, `ClaudeAdapter`, `DeepSeekAdapter`,
   `GeminiAdapter`) implements the remaining platform-specific parts:
-  - `createMenuItem()` — finds the native menu's content container
-    (`itemSelector`) and appends a cloned-style "Add to Folder" node,
-    wiring `mouseenter`/`mouseleave` to open/close the first cascade
-    level via the shared `showLevelMenu()`.
+  - `createMenuItem(trigger?)` — finds the native menu's content
+    container (`itemSelector`) and appends a cloned-style "Add to
+    Folder" node, wiring `mouseenter`/`mouseleave` to open/close the
+    first cascade level via the shared `showLevelMenu()`. The optional
+    `trigger` is the element the user clicked; platforms whose menu is
+    rendered *inside* the clicked chat row (ChatGPT since 1.3.6) must
+    resolve the container from it — `trigger.closest(rowSelector)
+    .querySelector(itemSelector)` — because a global
+    `document.querySelector(itemSelector)` only ever returns the first
+    match in document order, which is the hidden menu of the first row.
   - `getChatInfo()` — resolves the final `{ id, title, url }` payload,
     preferring the cached `currentTargetChat` and falling back to
     parsing the current page's URL/DOM.
@@ -111,7 +117,10 @@ leaving the native menu.
   cascade, anchored to the item's bounding rect.
 - Hovering a folder row with children opens the next level to its
   right; hovering a sibling folder (or one without children) tears
-  down any deeper levels via `removeSubMenus()`.
+  down any deeper levels via `removeSubMenus()`. `showLevelMenu()` also
+  clears any *existing* menu at the same depth (`removeSubMenus(level -
+  1)` for `level > 0`), so hovering a second sibling folder replaces
+  the previous sibling's submenu instead of leaving both on screen.
 - Moving the mouse off the whole cascade starts a short close-delay
   timer (`startCloseTimer`), cancelled if the mouse re-enters any
   level (`clearCloseTimer`), so briefly crossing a gap between levels
@@ -130,13 +139,20 @@ leaving the native menu.
 - `src/adapters/ChatGPTAdapter.ts` —
   `itemSelector`, `createMenuItem`, `getChatInfo` per platform; inherits
   the default `closeNativeMenu()` and `resolveFallbackTargetChat()`.
-  Overrides `insertCascadeMenu()` to append the cascade submenu into
-  `#browser-sidebar-popover` (when present) instead of `document.body`,
-  so that on narrow viewports the submenu sits inside the same stacking
-  context as the native menu and is not blocked by the sidebar popover's
-  overlay/backdrop. `historySelector` includes both
-  `#app-shell-sidebar` (wide) and `#browser-sidebar-popover` (narrow)
-  so chat-id resolution works in either layout.
+  `createMenuItem(trigger)` resolves the menu container from the clicked
+  row rather than the whole document, and installs a `MutationObserver`
+  that keeps the injected item as the last native entry — rows for chats
+  inside a project mount extra items (e.g. "Remove from project") after
+  our injection, which would otherwise push our item upward.
+  Overrides `insertCascadeMenu()` to mount every cascade level inside
+  ChatGPT's own menu container (`level-0` as a sibling of our item,
+  `level-N` inside the `level-(N-1)` menu) instead of
+  `#browser-sidebar-popover` / `document.body`. Sharing that ancestor
+  chain means the cascade shares the native menu's stacking context, so
+  ChatGPT's own submenus no longer paint over it. `historySelector`
+  includes both `#app-shell-sidebar` (wide) and
+  `#browser-sidebar-popover` (narrow) so chat-id resolution works in
+  either layout.
 - `src/adapters/ClaudeAdapter.ts` — same, plus a
   `resolveFallbackTargetChat()` override for the expanded history
   table; inherits the default `closeNativeMenu()`.
@@ -171,6 +187,7 @@ leaving the native menu.
 | 2026-08-07 | `<commit-hash>` | Fixed "Add to Folder" failing to inject in Claude's expanded "Show more" history table. Moved `initClickListener()`'s chat-id resolution to a two-stage lookup: primary sidebar-shape lookup, then a new `protected virtual resolveFallbackTargetChat()` hook (default no-op) for platforms with an alternate native DOM shape. ClaudeAdapter overrides it to recognize the `<table data-cds="DataTable">` rows in that view and pull the title from a sibling `span.truncate` rather than the anchor itself. |
 | 2026-10-08 | `<commit-hash>` | Fixed "Add to Folder" failing on ChatGPT after a sidebar DOM restructuring. Updated `ChatGPTAdapter` selectors: `itemSelector` from `[role="menu"] > div[role="group"]:last-child` to `div[role="menu"]`, `historySelector` from `#history` to `#app-shell-sidebar`, `rowSelector` from `li` to `div[role="listitem"]`, and the active-chat title fallback from `#history a[data-active]` to `#app-shell-sidebar a[aria-current="page"]`. Updated the injected menu item HTML to match ChatGPT's new `data-menu-row-content` row layout, preventing text wrapping inside the native menu. |
 | 2026-10-09 | `<commit-hash>` | Fixed "Add to Folder" cascade submenu being unclickable on ChatGPT narrow viewports. Narrow layout uses `#browser-sidebar-popover` instead of `#app-shell-sidebar`; added it to `historySelector` so chat-id resolution works. Added `insertCascadeMenu()` virtual method on `LeftSidebarAdapter` (default: `document.body`); `ChatGPTAdapter` overrides it to append the cascade submenu into `#browser-sidebar-popover` when present, placing it inside the same stacking context as the native menu so the popover's overlay/backdrop does not intercept pointer events. |
+| 2026-11-13 | `<commit-hash>` | Fixed three ChatGPT menu-injection regressions after ChatGPT began pre-rendering the context menu inside every chat row (`div[role="listitem"]`): (1) the injected item no longer appeared, because `document.querySelector(itemSelector)` returned the first row's hidden menu (which had no `menuitem`, so `createMenuItem` bailed out silently) — the container is now resolved from the click target via a new optional `createMenuItem(trigger?)` argument; (2) the injected item drifted upward on chats inside a project, because such rows mount extra items after our injection — a `MutationObserver` now keeps it pinned as the last native entry, ignoring our own cascade menus when comparing; (3) the folder cascade was covered by ChatGPT's native submenus — all cascade levels are now mounted inside ChatGPT's own menu container (replacing the `#browser-sidebar-popover` override) so they share the native menu's stacking context. Also made same-depth submenus mutually exclusive in `showLevelMenu()`. |
 
 ## TODO
 - [ ] None currently.
